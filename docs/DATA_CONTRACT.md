@@ -42,7 +42,7 @@ Makefile
 | `FRED_API_KEY` | 없음 | FRED 키. 없으면 fred 수집은 명확한 에러로 종료 |
 | `STOCKER_DATA_DIR` | `./data` | 캐시·수작업 CSV 위치 |
 
-`stocker/config.py`는 `Settings` (pydantic-settings) 하나를 노출한다: `settings.db_url`, `settings.fred_api_key`, `settings.data_dir`.
+`stocker/config.py`는 `Settings` (pydantic-settings) 하나를 노출한다: `settings.db_url`, `settings.fred_api_key`, `settings.data_dir`. 코드에서는 `settings.fred_key`(빈 문자열을 `None`으로 바꿔 주는 프로퍼티)를 쓴다.
 
 ## 3. 테이블
 
@@ -97,7 +97,9 @@ def read_macro(series_id: str, start=None, end=None, engine=None) -> pd.Series
 DEFAULT_SYMBOLS = ["^SOX", "SOXX", "SOXL", "SMH"]
 def fetch_prices(symbols: list[str], start="1990-01-01", end=None) -> pd.DataFrame
     # long format: columns = symbol,date,open,high,low,close,adj_close,volume,source
-    # yfinance auto_adjust=False. 결측 행 제거. date는 tz-naive.
+    # yfinance auto_adjust=False. 결측 행 제거. date는 tz-naive. end는 그날 포함.
+    # 데이터를 못 받은 심볼은 경고 후 건너뛴다(yfinance는 실패 시 빈 결과를 줄 수 있다).
+def store_prices(df: pd.DataFrame, engine=None) -> int     # prices_daily upsert
 def ingest_prices(symbols=DEFAULT_SYMBOLS, start="1990-01-01", engine=None) -> int
 ```
 
@@ -105,7 +107,8 @@ def ingest_prices(symbols=DEFAULT_SYMBOLS, start="1990-01-01", engine=None) -> i
 ```python
 DEFAULT_SERIES = ["DFF","DGS2","DGS10","T10Y2Y","DCOILWTICO","DTWEXBGS","VIXCLS","CPIAUCSL"]
 def fetch_fred(series_ids: list[str], start="1990-01-01", end=None) -> pd.DataFrame
-    # long format: series_id,date,value,source
+    # long format: series_id,date,value,source. settings.fred_key가 None이면 RuntimeError.
+def store_fred(df: pd.DataFrame, engine=None) -> int       # macro_series upsert
 def ingest_fred(series_ids=DEFAULT_SERIES, start="1990-01-01", engine=None) -> int
 ```
 
