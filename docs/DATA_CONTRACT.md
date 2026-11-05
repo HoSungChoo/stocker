@@ -343,3 +343,68 @@ tests/test_web.py   # charts.py 함수가 합성 데이터로 Figure를 만드�
 ```
 - `data.py`의 DB 접근은 `stocker.db`·`stocker.similarity.loaders`만 통해서. 엔진 내부를 재구현하지 않는다.
 - 한국어 UI. 용어는 첫 등장에 짧은 툴팁(`help=`)으로 풀이: 레버리지 감가, 추적오차, DTW, z-score.
+
+---
+
+# Phase 3 계약: 아침 보고서 + 스케줄러
+
+## 11. 범위 결정
+- **과금 없는 구성이 기본.** 보고서는 템플릿(Jinja2)으로 만든다. LLM 요약은 `ANTHROPIC_API_KEY`가 설정된 경우에만 켜지는 선택 기능이며, 기본은 꺼짐. 키 설정은 사용자 결정(유료).
+- **토스증권 계좌 연동은 보류.** 사용자가 토스 WTS에서 API 키를 발급한 뒤 별도 Phase로 진행한다.
+- **전송 채널**: 파일(`data/reports/`)이 기본. 이메일(SMTP)·텔레그램은 환경변수가 모두 있을 때만 활성.
+
+## 12. 보고서 (`stocker.report`) — Sonnet 세션
+
+### 12.1 환경변수 (`.env.example`에 추가, 모두 선택)
+| 이름 | 설명 |
+|---|---|
+| `REPORT_TIME` | 매일 실행 시각, KST `HH:MM`. 기본 `07:30` |
+| `REPORT_WINDOWS` | 쉼표 구분 창 길이. 기본 `120,250` |
+| `ANTHROPIC_API_KEY` | 있으면 LLM 요약 1단락 추가 (모델 `claude-sonnet-5-5`, max_tokens 600) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `REPORT_EMAIL_TO` | 모두 있으면 이메일 전송 |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | 둘 다 있으면 텔레그램 전송(stdlib urllib) |
+
+### 12.2 테이블 `report_runs`
+| 컬럼 | 타입 | 비고 |
+|---|---|---|
+| run_date | date | PK. 보고서 기준일(데이터 마지막 거래일) |
+| created_at | timestamptz | |
+| window | int | PK 일부 |
+| result | jsonb | `SimilarityResult`를 직렬화(matches, forward_summary, layers_missing, weights_used) |
+| report_md | text | 렌더된 Markdown(window별 섹션 포함 전체는 window=0 행에) |
+
+### 12.3 인터페이스
+```python
+# stocker/report/pipeline.py
+def refresh_data(engine=None) -> dict[str, int]      # prices(최근 30일만), fred(최근 60일), semi, events 순서로 수집. 실패한 단계는 건너뛰고 기록
+def build_report(as_of=None, windows=(120, 250), engine=None) -> Report
+    # Report: as_of, sections(window별 SimilarityResult + 전일 대비 변화), upcoming_events(7일), data_status, llm_summary(None 가능)
+def compare_with_previous(result, previous_result) -> dict   # 상위 K 구성 변화(새로 진입/이탈), 종합 점수 변화, forward 중앙값 변화
+def render_markdown(report) -> str                          # templates/report.md.j2
+def render_html(report) -> str                              # templates/report.html.j2 (이메일용, 인라인 CSS)
+def deliver(report, md, html) -> list[str]                  # 활성 채널 목록 반환. 파일은 항상: data/reports/YYYY-MM-DD.md/.html
+def run_daily(engine=None) -> Report                         # refresh → build → render → store(report_runs) → deliver
+# stocker/report/llm.py
+def summarize(report) -> str | None                          # 키 없으면 None. anthropic SDK. 프롬프트: 사실만, 투자 권고 금지, 한국어 4~6문장
+# stocker/report/scheduler.py
+def main() -> None                                           # APScheduler BlockingScheduler, cron(월~금 REPORT_TIME, tz Asia/Seoul), 시작 시 즉시 1회 실행 옵션 --run-now
+```
+CLI: `python -m stocker.report run [--as-of] [--no-deliver]`, `python -m stocker.report schedule [--run-now]`, `python -m stocker.report show [--date]`.
+
+### 12.4 보고서 내용 (Markdown, 위→아래)
+1. 제목: `SOX 국면 보고서 — YYYY-MM-DD`
+2. 데이터 상태: 각 소스 마지막 날짜, 오늘 갱신 행 수, 꺼진 레이어
+3. 창별 섹션(120, 250): 상위 K 표(구간, 레이어 점수, 종합, fwd 12m) + forward_summary + **전일 대비 변화**(새로 들어온/빠진 국면, 중앙값 변화)
+4. 이번 주 예정 이벤트(7일, scheduled=true)
+5. (선택) LLM 요약
+6. 고정 푸터: 표본 n, 상승/하락 개수, "예측하지 않는다"
+7. 대시보드 링크 `http://localhost:8501`
+
+### 12.5 인프라
+- 의존성 추가: `jinja2`, `apscheduler>=3.10,<4`, `anthropic`(선택이지만 설치는 함). 이 세션만 pyproject·uv.lock 수정.
+- docker compose `scheduler` 서비스: `app` 이미지, 명령 `python -m stocker.report schedule`, `depends_on: db`, `restart: unless-stopped`, `TZ=Asia/Seoul`.
+- Makefile: `report`(즉시 1회), `schedule`.
+- 대시보드 `app.py` 상단에 "최신 보고서 보기" expander 추가(`report_runs` 최신 `report_md` 표시). 이 세션이 `stocker/web/app.py`를 이 목적에 한해 수정한다.
+
+### 12.6 테스트
+- 템플릿 렌더(합성 Report → Markdown에 필수 섹션 7개 존재), `compare_with_previous`(진입/이탈 계산), `deliver`가 채널 미설정 시 파일만 쓰는지, `summarize`가 키 없으면 None, 스케줄러 cron 표현이 `REPORT_TIME` 파싱대로인지. `@pytest.mark.db`: `run_daily(--no-deliver)` 후 `report_runs` 행 존재, 두 번 실행해도 PK 충돌 없이 갱신.
