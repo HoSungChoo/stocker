@@ -125,3 +125,18 @@ def read_macro(series_id: str, start=None, end=None, engine: sa.Engine | None = 
         df = pd.read_sql(sa.text(sql), conn, params=params)
     idx = pd.DatetimeIndex(pd.to_datetime(df["date"]), name="date")
     return pd.Series(df["value"].to_numpy(dtype="float64"), index=idx, name=series_id)
+
+
+def read_cycle(metric: str, start=None, end=None, engine: sa.Engine | None = None) -> pd.Series:
+    """산업 사이클 지표(semi_cycle). index=date(tz-naive), name=metric."""
+    engine = engine or get_engine()
+    sql = (
+        "SELECT date, value FROM semi_cycle "
+        "WHERE metric = :metric AND (CAST(:start AS date) IS NULL OR date >= :start) "
+        "AND (CAST(:end AS date) IS NULL OR date <= :end) ORDER BY date"
+    )
+    params = {"metric": metric, "start": _date_bound(start), "end": _date_bound(end)}
+    with engine.connect() as conn:
+        df = pd.read_sql(sa.text(sql), conn, params=params)
+    idx = pd.DatetimeIndex(pd.to_datetime(df["date"]), name="date")
+    return pd.Series(df["value"].to_numpy(dtype="float64"), index=idx, name=metric)

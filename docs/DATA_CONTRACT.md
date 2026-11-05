@@ -190,14 +190,17 @@ metric 목록 (원시값만 저장, YoY 등 파생값은 엔진이 계산):
 
 ### 7.2 시드 파일
 - `seed/wsts_sales_world.csv` — 컬럼 `date,value`. WSTS "Historical Billings Report"(공개 Excel)를 1회 파싱해 커밋한다. 파싱 스크립트는 `scripts/parse_wsts.py`로 남긴다(런타임 의존성 추가 금지, 1회용은 `uv run --with openpyxl`).
-- `seed/` 디렉터리는 git에 추적된다(`data/`와 달리).
+- `seed/*.csv`는 **git에 올리지 않는다**(WSTS 자료 재배포 제한 가능성). `make seed`(= `uv run --with openpyxl python scripts/parse_wsts.py`)로 로컬에서 생성한다. 스크립트만 추적한다.
+- `mu_*` 두 metric은 yfinance가 최근 5분기만 주므로 과거 국면 비교에는 쓰이지 않는다(참고용). 값의 신뢰성도 미확인.
 
 ### 7.3 인터페이스
 ```python
 # stocker/ingest/semi.py
 def load_wsts_seed() -> pd.DataFrame            # seed CSV → long format (metric,date,value,source)
 def fetch_mu_financials() -> pd.DataFrame        # yfinance MU → long format, 두 metric
-def ingest_semi(engine=None) -> int              # 둘을 합쳐 semi_cycle upsert
+def fetch_semi() -> pd.DataFrame                 # 위 둘을 합친 long format
+def store_semi(df, engine=None) -> int           # semi_cycle upsert
+def ingest_semi(engine=None) -> int              # fetch_semi → store_semi
 # stocker/db  (이 세션이 추가)
 def read_cycle(metric: str, start=None, end=None, engine=None) -> pd.Series
 ```
@@ -214,13 +217,17 @@ CLI: `python -m stocker.ingest semi`.
 ```python
 @dataclass
 class SimilarityConfig:
-    window: int = 120                 # 거래일. 60/120/250 지원
+    window: int = 120  # 거래일. 60/120/250 지원
     top_k: int = 5
-    min_gap_days: int = 250           # 선택된 국면끼리, 그리고 as_of와의 최소 간격
+    min_gap_days: int = 250  # 선택된 국면끼리, 그리고 as_of와의 최소 간격
     weights: dict = {"price_shape": 0.5, "macro": 0.3, "semi_cycle": 0.2}
     horizons: tuple = (21, 63, 126, 252)
-    macro_series: tuple = ("DFF","DGS10","T10Y2Y","DCOILWTICO","DTWEXBGS","VIXCLS")
-    change_days: int = 126            # 매크로 "방향" 특징의 기간
+    macro_series: tuple = ("DFF", "DGS10", "T10Y2Y", "DCOILWTICO", "DTWEXBGS", "VIXCLS")
+    change_days: int = 126  # 매크로 "방향" 특징의 기간
+    cycle_lag_days: int = (
+        45  # 산업 사이클 월간 값의 발표 지연. WSTS 월말값은 다음 달 중순 공개되므로
+    )
+    # 날짜를 45일 뒤로 밀어 룩어헤드를 막는다
 ```
 
 ### 8.3 레이어
@@ -244,18 +251,19 @@ class SimilarityConfig:
 @dataclass
 class Match:
     end_date: pd.Timestamp
-    scores: dict[str, float]          # 레이어별 0~1
+    scores: dict[str, float]  # 레이어별 0~1
     combined: float
-    forward: dict[int, float]         # horizon → 이후 수익률(SOX). 미래 데이터가 부족하면 NaN
+    forward: dict[int, float]  # horizon → 이후 수익률(SOX). 미래 데이터가 부족하면 NaN
+
 
 @dataclass
 class SimilarityResult:
     as_of: pd.Timestamp
     config: SimilarityConfig
-    matches: list[Match]              # top_k, combined 내림차순, min_gap 적용
+    matches: list[Match]  # top_k, combined 내림차순, min_gap 적용
     n_candidates: int
     layers_missing: list[str]
-    forward_summary: pd.DataFrame     # index=horizon, columns=median,p10,p90,n_up,n_down,n
+    forward_summary: pd.DataFrame  # index=horizon, columns=median,p10,p90,n_up,n_down,n
 ```
 ```python
 def build_price_features(close: pd.Series, window: int) -> pd.DataFrame

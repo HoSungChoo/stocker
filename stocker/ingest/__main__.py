@@ -1,4 +1,4 @@
-"""CLI: python -m stocker.ingest prices|fred"""
+"""CLI: python -m stocker.ingest prices|fred|semi"""
 
 from __future__ import annotations
 
@@ -58,6 +58,15 @@ def fred(
         typer.echo("받은 데이터가 없다", err=True)
         raise typer.Exit(1)
     _report(df, "series_id", store_fred(df))
+
+
+@app.command()
+def semi() -> None:
+    """WSTS 시드 + 마이크론 분기 실적을 semi_cycle에 적재."""
+    from stocker.ingest.semi import fetch_semi, store_semi
+
+    df = fetch_semi()
+    _report(df, "metric", store_semi(df))
 
 
 if __name__ == "__main__":

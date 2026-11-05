@@ -18,3 +18,6 @@ lint:
 fmt:
 	uv run ruff format .
 	uv run ruff check --fix .
+
+seed: ## WSTS 시드 CSV 생성 (git 미추적)
+	uv run --with openpyxl python scripts/parse_wsts.py

@@ -38,3 +38,14 @@ CREATE TABLE IF NOT EXISTS events (
     source      text,
     meta        jsonb
 );
+
+CREATE TABLE IF NOT EXISTS semi_cycle (
+    metric      text             NOT NULL,
+    date        date             NOT NULL,
+    value       double precision,
+    source      text,
+    ingested_at timestamptz      NOT NULL DEFAULT now(),
+    PRIMARY KEY (metric, date)
+);
+
+SELECT create_hypertable('semi_cycle', 'date', if_not_exists => TRUE);
