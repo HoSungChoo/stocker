@@ -52,6 +52,8 @@ class SimilarityOut(BaseModel):
     applicable: bool | None = None  # False면 "현재와 충분히 닮은 과거 사례가 없다"
     applicable_n: int | None = None
     forward_summary_source: str | None = None  # "matches" | "baseline"
+    # 전체 과거(as_of 이하) 기준선 분포. 닮은 국면 분포와 나란히 보여 주려고 항상 채운다.
+    forward_summary_baseline: list[ForwardSummaryRow] | None = None
 
 
 class Point(BaseModel):

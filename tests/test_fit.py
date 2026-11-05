@@ -241,3 +241,21 @@ def test_fit_not_evaluable_without_macro_keeps_old_behaviour():
     assert len(res.fit) == len(res.matches)
     for f in res.fit:
         assert _cond(f, "rate").passed is None and _cond(f, "cycle").passed is None
+
+
+def test_score_always_carries_baseline_and_it_has_no_lookahead():
+    """forward_summary_baseline: 항상 채워지고 as_of 이후 데이터는 쓰지 않는다."""
+    close, macro, cycle = _synthetic_inputs()
+    cfg = SimilarityConfig(window=60, top_k=5)
+    cut = close.index[1500]
+    full = score(cut, close, macro, cycle, cfg)  # as_of 이후 데이터가 입력에 있어도
+    trimmed = score(cut, close.loc[:cut], macro, cycle, cfg)  # 잘라 넣은 것과 같아야 한다
+    assert full.forward_summary_baseline is not None
+    pd.testing.assert_frame_equal(full.forward_summary_baseline, trimmed.forward_summary_baseline)
+    expected = baseline_forward_summary(close.loc[:cut], cfg.horizons)
+    pd.testing.assert_frame_equal(full.forward_summary_baseline, expected)
+    # as_of 이후 구간은 n에 들어가지 않는다 (끝 h행은 결과를 아직 몰랐던 창)
+    n_hist = int((close.index <= cut).sum())
+    assert full.forward_summary_baseline.loc[252, "n"] == n_hist - 252
+    # 닮은 국면 분포가 기준선과 같은 객체가 아니어도 되고, 둘 다 같은 열을 가진다
+    assert list(full.forward_summary_baseline.columns) == list(full.forward_summary.columns)

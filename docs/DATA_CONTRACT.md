@@ -264,6 +264,9 @@ class SimilarityResult:
     n_candidates: int
     layers_missing: list[str]
     forward_summary: pd.DataFrame  # index=horizon, columns=median,p10,p90,n_up,n_down,n
+    forward_summary_baseline: (
+        pd.DataFrame | None
+    )  # 같은 형식. as_of 이하 전체 과거 창의 기준선 분포(항상 채움)
 ```
 ```python
 def build_price_features(close: pd.Series, window: int) -> pd.DataFrame

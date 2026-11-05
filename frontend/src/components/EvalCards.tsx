@@ -188,7 +188,9 @@ export default function EvalCards({
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline gap-3">
         <h2 className="m-0 text-lg">왜 닮았다고 보나 — 평가표</h2>
-        <span className="muted text-[13px]">점수는 0~1, 1이 가장 닮음. 레이어별 근거는 "그때 값 / 지금 값"으로 나란히 보여준다.</span>
+        <span className="muted text-[13px]">
+          상위 국면은 '이런 일이 있었다'는 사례다. 통계적 근거로 읽지 않는다.
+        </span>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         {top.map((m, i) => (

@@ -12,6 +12,21 @@ from stocker.similarity.engine import SimilarityResult
 router = APIRouter(tags=["similarity"])
 
 
+def _summary_rows(df) -> list[ForwardSummaryRow]:
+    return [
+        ForwardSummaryRow(
+            horizon=int(h),
+            median=num(r["median"]),
+            p10=num(r["p10"]),
+            p90=num(r["p90"]),
+            n_up=int(r["n_up"]),
+            n_down=int(r["n_down"]),
+            n=int(r["n"]),
+        )
+        for h, r in df.iterrows()
+    ]
+
+
 def result_out(res: SimilarityResult) -> SimilarityOut:
     cfg = res.config
     matches = [
@@ -25,18 +40,8 @@ def result_out(res: SimilarityResult) -> SimilarityOut:
         )
         for i, m in enumerate(res.matches, 1)
     ]
-    summary = [
-        ForwardSummaryRow(
-            horizon=int(h),
-            median=num(r["median"]),
-            p10=num(r["p10"]),
-            p90=num(r["p90"]),
-            n_up=int(r["n_up"]),
-            n_down=int(r["n_down"]),
-            n=int(r["n"]),
-        )
-        for h, r in res.forward_summary.iterrows()
-    ]
+    summary = _summary_rows(res.forward_summary)
+    baseline_df = getattr(res, "forward_summary_baseline", None)
     fit = getattr(res, "fit", None)  # 세션 R의 적합 판정(23절). 아직 없으면 전부 null
     applicable_n = getattr(res, "applicable_n", None)
     return SimilarityOut(
@@ -48,6 +53,7 @@ def result_out(res: SimilarityResult) -> SimilarityOut:
         weights_used={k: float(v) for k, v in res.weights_used.items()},
         matches=matches,
         forward_summary=summary,
+        forward_summary_baseline=None if baseline_df is None else _summary_rows(baseline_df),
         mode=getattr(cfg, "mode", None),
         fit=None if fit is None else jsonable(list(fit)),
         applicable=getattr(res, "applicable", None),

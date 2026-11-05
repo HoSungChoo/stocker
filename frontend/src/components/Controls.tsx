@@ -25,12 +25,15 @@ interface Props {
   candidates?: number
   summary?: ForwardSummary
   layersMissing: string[]
-  n?: number
+  /** 헤더 "표본 n"에 그대로 찍을 문구 (분포에 실제 쓰인 수). 없으면 '—' */
+  sampleLabel?: string
+  /** "표본 n" 옆의 작은 보충 문구 (예: "(상위 5 중)") */
+  sampleNote?: string
   /** 서버가 알려 준 현재 모드. null/undefined 면 서버가 mode 를 지원하지 않는 것이므로 토글을 숨긴다. */
   serverMode?: Mode | null
 }
 
-export default function Controls({ state, onChange, asOfShown, candidates, summary, layersMissing, n, serverMode }: Props) {
+export default function Controls({ state, onChange, asOfShown, candidates, summary, layersMissing, sampleLabel, sampleNote, serverMode }: Props) {
   const set = (patch: Partial<ControlState>) => onChange({ ...state, ...patch })
   const sliders: { key: keyof Weights; label: string }[] = [
     { key: 'price', label: '가격 형태' },
@@ -140,7 +143,8 @@ export default function Controls({ state, onChange, asOfShown, candidates, summa
         <div>
           <div className="muted text-[13px]">표본 n</div>
           <div className="mono text-2xl font-bold" data-testid="sample-n">
-            {n ?? '—'}
+            {sampleLabel ?? '—'}
+            {sampleNote && <span className="muted text-sm font-normal"> {sampleNote}</span>}
           </div>
         </div>
         <div>

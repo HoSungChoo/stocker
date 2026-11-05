@@ -47,10 +47,24 @@ export default function MainPage() {
   const sim = useSimilarity(q)
   const overlay = useOverlay(q)
 
-  const s12 = sim.data?.forward_summary.find((x) => x.horizon === 252)
-  const n = sim.data?.matches.length
+  const noMatches = sim.data?.forward_summary_source === 'baseline'
+  // 기준선으로 대체된 경우 forward_summary 는 닮은 국면이 아니라 전체 과거 분포이므로 헤더·푸터의 상승/하락은 비운다.
+  const s12 = noMatches ? undefined : sim.data?.forward_summary.find((x) => x.horizon === 252)
+  const topK = sim.data?.matches.length
+  // 분포에 실제 쓰인 국면 수. 적합 판정이 있으면 applicable_n(상위 K 중 적합한 수),
+  // 판정 불가(null)거나 서버가 안 내면 상위 K 전체가 쓰인다.
+  const hasFit = sim.data?.applicable != null && sim.data?.applicable_n != null
+  const usedN = hasFit ? (sim.data?.applicable_n ?? 0) : topK
   const missing = sim.data?.layers_missing ?? health.data?.layers_missing ?? []
-  const baseline = sim.data?.forward_summary_source === 'baseline'
+  let sampleLabel: string | undefined
+  let sampleNote: string | undefined
+  if (noMatches) {
+    sampleLabel = '0'
+    sampleNote = '(기준선 사용)'
+  } else if (usedN != null) {
+    sampleLabel = String(usedN)
+    if (hasFit) sampleNote = `(상위 ${topK} 중)`
+  }
   const asOfShown = sim.data?.as_of ?? (ctl.asOf || health.data?.last_trading_day || '—')
 
   return (
@@ -64,7 +78,8 @@ export default function MainPage() {
         candidates={sim.data?.n_candidates}
         summary={s12}
         layersMissing={missing}
-        n={n}
+        sampleLabel={sampleLabel}
+        sampleNote={sampleNote}
         serverMode={sim.data?.mode}
       />
 
@@ -75,11 +90,16 @@ export default function MainPage() {
       {overlay.data && <OverlayCard overlay={overlay.data} sim={sim.data} window={settled.window} />}
       {sim.data && (
         <>
-          <Distribution summary={sim.data.forward_summary} n={sim.data.matches.length} baseline={baseline} />
+          <Distribution
+            summary={sim.data.forward_summary}
+            baseline={sim.data.forward_summary_baseline}
+            n={noMatches ? 0 : (usedN ?? 0)}
+            noMatches={noMatches}
+          />
           <EvalCards matches={sim.data.matches} fit={sim.data.fit} q={q} />
           <Honesty>
             <strong>
-              {baseline ? `표본 ${s12?.n ?? 0}개(전체 과거 기준선).` : `표본 ${sim.data.matches.length}개.`}
+              {noMatches ? '표본 0개(기준선 사용).' : `표본 ${usedN}개.`}
             </strong>
             <span>유사 국면의 결과는 갈릴 수 있으며, 이 도구는 예측하지 않는다.</span>
             {s12 && (

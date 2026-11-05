@@ -80,6 +80,10 @@ class SimilarityResult:
     # "matches": 상위 K(ok 이상)로 계산. "baseline": 전체 과거 분포로 대체(applicable=False).
     forward_summary_source: str = "matches"
     mode: str = "shape"
+    # 기준선: as_of 이하 전체 과거 창의 horizon별 이후 수익률 분포. 매칭 결과와 나란히 보이려고
+    # 모드·적합 여부와 상관없이 항상 채운다(백테스트에서 매칭이 기준선을 못 이긴 결과 반영).
+    # None이면 계산하지 않은 것(환경 우선 모드는 API 층에서 채운다).
+    forward_summary_baseline: pd.DataFrame | None = None
 
 
 def _clean_close(close: pd.Series) -> pd.Series:
@@ -405,4 +409,5 @@ def score(
         applicable_n=applicable_n,
         forward_summary_source=source,
         mode="shape",
+        forward_summary_baseline=baseline_forward_summary(hist, cfg.horizons),
     )

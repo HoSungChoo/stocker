@@ -73,11 +73,19 @@ const similarity = {
     combined: m.c,
     forward: Object.fromEntries(H.map((h, i) => [String(h), m.f[i]])),
   })),
+  // applicable_n=3 이므로 분포는 적합한 3개(1~3위)로 만든다. 헤더 표본 n 도 3 (상위 5 중).
   forward_summary: [
-    { horizon: 21, median: -0.048, p10: -0.139, p90: 0.102, n_up: 2, n_down: 3, n: 5 },
-    { horizon: 63, median: 0.016, p10: -0.164, p90: 0.126, n_up: 3, n_down: 2, n: 5 },
-    { horizon: 126, median: 0.121, p10: -0.289, p90: 0.318, n_up: 3, n_down: 2, n: 5 },
-    { horizon: 252, median: 0.25, p10: -0.247, p90: 0.525, n_up: 3, n_down: 2, n: 5 },
+    { horizon: 21, median: -0.071, p10: -0.162, p90: 0.107, n_up: 1, n_down: 2, n: 3 },
+    { horizon: 63, median: -0.087, p10: -0.19, p90: 0.089, n_up: 1, n_down: 2, n: 3 },
+    { horizon: 126, median: -0.227, p10: -0.31, p90: 0.238, n_up: 1, n_down: 2, n: 3 },
+    { horizon: 252, median: -0.039, p10: -0.316, p90: 0.543, n_up: 1, n_down: 2, n: 3 },
+  ],
+  // 전체 과거(as_of 이하) 기준선. 닮은 국면 줄과 나란히 보인다.
+  forward_summary_baseline: [
+    { horizon: 21, median: 0.018, p10: -0.127, p90: 0.162, n_up: 4461, n_down: 3331, n: 7792 },
+    { horizon: 63, median: 0.052, p10: -0.213, p90: 0.311, n_up: 4743, n_down: 3009, n: 7752 },
+    { horizon: 126, median: 0.096, p10: -0.287, p90: 0.505, n_up: 4871, n_down: 2820, n: 7691 },
+    { horizon: 252, median: 0.171, p10: -0.341, p90: 0.793, n_up: 5016, n_down: 2547, n: 7565 },
   ],
   mode: 'shape',
   fit: matches.map((m) => {

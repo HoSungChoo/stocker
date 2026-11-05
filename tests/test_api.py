@@ -117,6 +117,42 @@ def test_similarity_schema(client):
     }
 
 
+def test_similarity_has_baseline_without_lookahead(client, monkeypatch):
+    """forward_summary_baseline: 항상 있고 as_of 이전 데이터만으로 계산된다 (합성 데이터로 검산)."""
+    as_of = CLOSE.index[1500]
+    b = client.get(f"/api/similarity?as_of={as_of.strftime('%Y-%m-%d')}").json()
+    base = b["forward_summary_baseline"]
+    assert [row["horizon"] for row in base] == [21, 63, 126, 252]
+    assert set(base[0]) == set(b["forward_summary"][0])
+    hist = CLOSE.loc[:as_of]
+    for row in base:
+        h = row["horizon"]
+        exp = (hist.shift(-h) / hist - 1.0).dropna()  # as_of 이후는 쓰지 않는다
+        assert row["n"] == len(exp) == len(hist) - h
+        assert row["median"] == pytest.approx(float(np.median(exp)))
+        assert row["p10"] == pytest.approx(float(np.percentile(exp, 10)))
+        assert row["n_up"] == int((exp > 0).sum()) and row["n_down"] == int((exp < 0).sum())
+    # as_of 이후 데이터를 바꿔도 기준선은 변하지 않는다
+    api_data.clear_caches()
+    altered = CLOSE.copy()
+    altered.loc[altered.index > as_of] *= 3.0
+    monkeypatch.setattr(api_data, "load_inputs", lambda: (altered, MACRO, CYCLE))
+    again = client.get(f"/api/similarity?as_of={as_of.strftime('%Y-%m-%d')}").json()
+    assert again["forward_summary_baseline"] == base
+
+
+def test_similarity_baseline_present_in_regime_fallback(client):
+    """모드 경로(환경 우선)로 와도 기준선은 API 층에서 채워진다."""
+    r = client.get("/api/similarity?mode=regime")
+    if r.status_code == 200:
+        assert [row["horizon"] for row in r.json()["forward_summary_baseline"]] == [
+            21,
+            63,
+            126,
+            252,
+        ]
+
+
 def test_similarity_query_params_and_weights(client):
     r = client.get(
         "/api/similarity?window=60&top_k=3&w_price=1&w_macro=1&w_cycle=0&as_of=2023-06-30"

@@ -21,6 +21,7 @@ from stocker.api.common import CommonQuery
 from stocker.similarity.config import SimilarityConfig
 from stocker.similarity.engine import SimilarityResult, score
 from stocker.similarity.explain import Explanation, explain
+from stocker.similarity.fit import baseline_forward_summary
 
 logger = logging.getLogger(__name__)
 
@@ -87,11 +88,21 @@ def similarity(q: CommonQuery) -> SimilarityResult:
         if q.mode:
             res = _run_with_mode(q)
             if res is not None:
-                return res
+                return _with_baseline(res, q)
         close, macro, cycle = inputs()
-        return score(resolve_as_of(q), close, macro, cycle, q.config())
+        return _with_baseline(score(resolve_as_of(q), close, macro, cycle, q.config()), q)
 
     return result_cache.get_or_set(make_key("similarity", q.key()), compute)
+
+
+def _with_baseline(res: SimilarityResult, q: CommonQuery) -> SimilarityResult:
+    """엔진이 기준선 분포를 안 채웠으면(환경 우선 모드) 여기서 채운다. as_of 이하 종가만 쓴다."""
+    if getattr(res, "forward_summary_baseline", None) is None:
+        close, _, _ = inputs()
+        res.forward_summary_baseline = baseline_forward_summary(
+            close.loc[: res.as_of], q.config().horizons
+        )
+    return res
 
 
 def _run_with_mode(q: CommonQuery) -> SimilarityResult | None:

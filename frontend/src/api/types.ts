@@ -73,6 +73,8 @@ export interface SimilarityResponse {
   weights_used: Scores
   matches: Match[]
   forward_summary: ForwardSummary[]
+  /** 전체 과거(as_of 이하) 기준선 분포. 서버가 안 내면 없음 → 기준선 줄을 숨긴다. */
+  forward_summary_baseline?: ForwardSummary[] | null
   /** Phase 6 필드. 서버(엔진)가 아직 안 내면 없거나 null → 배너·배지·토글을 숨긴다. */
   mode?: Mode | null
   /** matches 와 같은 순서 */
