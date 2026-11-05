@@ -592,3 +592,28 @@ def test_client_shares_token_through_real_table(engine, net):
     finally:
         with engine.begin() as conn:
             conn.exec_driver_sql(f"DELETE FROM broker_tokens WHERE client_id = '{cid}'")
+
+
+def test_inflate_gzip_error_body_is_parsed():
+    import gzip
+    import json
+
+    from stocker.broker.toss import _inflate, _parse_error
+
+    body = gzip.compress(
+        json.dumps(
+            {"error": {"code": "invalid-request", "message": "m", "requestId": "r"}}
+        ).encode()
+    )
+    assert _inflate(body).startswith(b"{")
+    err = _parse_error(400, _inflate(body))
+    assert (err.code, err.request_id) == ("invalid-request", "r")
+    assert _inflate(b"{}") == b"{}"
+
+
+def test_buying_power_sends_currency_query(net, store):
+    net.push_token()
+    net.push({"result": {"currency": "USD", "cashBuyingPower": "1"}})
+    c = client("42")
+    c.buying_power()
+    assert "currency=USD" in net.requests[-1].full_url

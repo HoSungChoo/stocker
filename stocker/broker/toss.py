@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import gzip
 import json
 import logging
 import os
@@ -52,6 +53,16 @@ def _env(name: str) -> str | None:
 
 def _utcnow() -> dt.datetime:
     return dt.datetime.now(dt.UTC)
+
+
+def _inflate(body: bytes) -> bytes:
+    """서버가 오류 응답을 gzip으로 보낼 때가 있다(urllib은 자동으로 풀지 않는다)."""
+    if body[:2] == b"\x1f\x8b":
+        try:
+            return gzip.decompress(body)
+        except OSError:
+            return body
+    return body
 
 
 def _parse_error(status: int, body: bytes) -> TossApiError:
@@ -154,9 +165,9 @@ class TossClient:
         """요청 한 번(429면 Retry-After만큼 기다린 뒤 1회 재시도). 오류는 TossApiError."""
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-                raw = resp.read()
+                raw = _inflate(resp.read())
         except urllib.error.HTTPError as exc:
-            body = exc.read()
+            body = _inflate(exc.read())
             if exc.code == 429 and retry_429:
                 try:
                     wait = float(exc.headers.get("Retry-After", "1"))
@@ -204,8 +215,9 @@ class TossClient:
         params = {"symbol": symbol} if symbol else None
         return self._get("/api/v1/holdings", params, account=True) or {}
 
-    def buying_power(self) -> dict:
-        return self._get("/api/v1/buying-power", account=True) or {}
+    def buying_power(self, currency: str = "USD") -> dict:
+        """매수가능금액. 실서버는 `currency`(USD/KRW)가 없으면 400 invalid-request를 낸다."""
+        return self._get("/api/v1/buying-power", {"currency": currency}, account=True) or {}
 
     def prices(self, symbols: list[str]) -> list[dict]:
         if not symbols:
