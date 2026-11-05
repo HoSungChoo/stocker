@@ -1,0 +1,32 @@
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: stocker
+      POSTGRES_PASSWORD: stocker
+      POSTGRES_DB: stocker
+    ports:
+      - "5432:5432"
+    volumes:
+      - stocker_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stocker -d stocker"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    env_file:
+      - .env
+    environment:
+      STOCKER_DB_URL: postgresql+psycopg://stocker:stocker@db:5432/stocker
+      STOCKER_DATA_DIR: /app/data
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  stocker_pgdata:

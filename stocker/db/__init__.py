@@ -1,0 +1,127 @@
+"""DB 접근은 이 패키지에만 둔다."""
+
+from __future__ import annotations
+
+import datetime as dt
+from pathlib import Path
+
+import pandas as pd
+import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+from stocker.config import settings
+
+SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+CHUNK_ROWS = 5000
+_MAX_PARAMS = 60000  # 드라이버 바인드 파라미터 한도(65535) 아래로 유지
+
+_PRICE_COLS = ["open", "high", "low", "close", "adj_close", "volume"]
+
+
+def get_engine() -> sa.Engine:
+    return sa.create_engine(settings.db_url, pool_pre_ping=True)
+
+
+def init_db(engine: sa.Engine | None = None) -> None:
+    """schema.sql 실행 (idempotent)."""
+    engine = engine or get_engine()
+    sql = SCHEMA_PATH.read_text(encoding="utf-8")
+    statements = [s.strip() for s in _strip_comments(sql).split(";") if s.strip()]
+    with engine.begin() as conn:
+        for stmt in statements:
+            conn.exec_driver_sql(stmt)
+
+
+def _strip_comments(sql: str) -> str:
+    return "\n".join(line for line in sql.splitlines() if not line.lstrip().startswith("--"))
+
+
+def _to_python(value, col_type):
+    """pandas/numpy 값을 DB 드라이버가 받는 파이썬 값으로 변환."""
+    if value is None or value is pd.NaT:
+        return None
+    if isinstance(value, float) and value != value:
+        return None
+    if isinstance(value, pd.Timestamp):
+        return value.date() if isinstance(col_type, sa.Date) else value.to_pydatetime()
+    if hasattr(value, "item"):  # numpy scalar
+        value = value.item()
+        if isinstance(value, float) and value != value:
+            return None
+    if isinstance(col_type, sa.Integer) and isinstance(value, float):
+        return int(value)
+    return value
+
+
+def upsert_df(df: pd.DataFrame, table: str, pk: list[str], engine: sa.Engine | None = None) -> int:
+    """INSERT ... ON CONFLICT (pk) DO UPDATE. 반환: 영향 행 수."""
+    if df.empty:
+        return 0
+    engine = engine or get_engine()
+    df = df.reset_index() if any(c in (df.index.names or []) for c in pk) else df
+    missing = [c for c in pk if c not in df.columns]
+    if missing:
+        raise ValueError(f"pk columns missing from DataFrame: {missing}")
+    df = df.drop_duplicates(subset=pk, keep="last")
+
+    tbl = sa.Table(table, sa.MetaData(), autoload_with=engine)
+    unknown = [c for c in df.columns if c not in tbl.c]
+    if unknown:
+        raise ValueError(f"columns not in table {table}: {unknown}")
+
+    cols = list(df.columns)
+    update_cols = [c for c in cols if c not in pk]
+    chunk = max(1, min(CHUNK_ROWS, _MAX_PARAMS // len(cols)))
+
+    total = 0
+    with engine.begin() as conn:
+        for i in range(0, len(df), chunk):
+            part = df.iloc[i : i + chunk]
+            rows = [
+                {c: _to_python(v, tbl.c[c].type) for c, v in zip(cols, rec, strict=True)}
+                for rec in part.astype(object).itertuples(index=False, name=None)
+            ]
+            stmt = pg_insert(tbl).values(rows)
+            set_ = {c: stmt.excluded[c] for c in update_cols}
+            if "ingested_at" in tbl.c and "ingested_at" not in cols:
+                set_["ingested_at"] = sa.func.now()
+            if set_:
+                stmt = stmt.on_conflict_do_update(index_elements=pk, set_=set_)
+            else:
+                stmt = stmt.on_conflict_do_nothing(index_elements=pk)
+            # 암시적 RETURNING 때문에 rowcount가 -1이 되므로 반환 행 수로 센다
+            total += len(conn.execute(stmt.returning(tbl.c[pk[0]])).all())
+    return total
+
+
+def _date_bound(value) -> dt.date | None:
+    return None if value is None else pd.Timestamp(value).date()
+
+
+def read_prices(symbol: str, start=None, end=None, engine: sa.Engine | None = None) -> pd.DataFrame:
+    """index=date(DatetimeIndex, tz-naive), columns=open..volume."""
+    engine = engine or get_engine()
+    sql = (
+        "SELECT date, open, high, low, close, adj_close, volume FROM prices_daily "
+        "WHERE symbol = :symbol AND (CAST(:start AS date) IS NULL OR date >= :start) "
+        "AND (CAST(:end AS date) IS NULL OR date <= :end) ORDER BY date"
+    )
+    params = {"symbol": symbol, "start": _date_bound(start), "end": _date_bound(end)}
+    with engine.connect() as conn:
+        df = pd.read_sql(sa.text(sql), conn, params=params)
+    df["date"] = pd.to_datetime(df["date"])
+    return df.set_index("date")[_PRICE_COLS]
+
+
+def read_macro(series_id: str, start=None, end=None, engine: sa.Engine | None = None) -> pd.Series:
+    engine = engine or get_engine()
+    sql = (
+        "SELECT date, value FROM macro_series "
+        "WHERE series_id = :sid AND (CAST(:start AS date) IS NULL OR date >= :start) "
+        "AND (CAST(:end AS date) IS NULL OR date <= :end) ORDER BY date"
+    )
+    params = {"sid": series_id, "start": _date_bound(start), "end": _date_bound(end)}
+    with engine.connect() as conn:
+        df = pd.read_sql(sa.text(sql), conn, params=params)
+    idx = pd.DatetimeIndex(pd.to_datetime(df["date"]), name="date")
+    return pd.Series(df["value"].to_numpy(dtype="float64"), index=idx, name=series_id)
