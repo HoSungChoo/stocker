@@ -35,6 +35,14 @@ from stocker.similarity.features import (
     build_price_features,
     shape_columns,
 )
+from stocker.similarity.fit import (
+    FitCheck,
+    baseline_forward_summary,
+    build_fit_features,
+    check_fit,
+    features_at,
+    is_ok,
+)
 
 LAYERS = ("price_shape", "macro", "semi_cycle")
 TRADING_DAYS = 252
@@ -64,6 +72,14 @@ class SimilarityResult:
     # euclid_rank: 창 벡터 유클리드 거리의 순위(1이 가장 가까움, 전 후보).
     # dtw_rank: DTW 거리의 순위(유클리드 사전 필터 안에서만; 밖이면 NaN).
     candidates: pd.DataFrame | None = None
+    # --- 적합 기준 (PHASE6_CONTRACT 23절). 기본값은 "판정 안 함"(기존 호출자 호환) ---
+    fit: list[FitCheck] = field(default_factory=list)  # matches와 같은 순서
+    # True/False = 판정 결과. None = 판정 불가(금리·업황 입력이 없어 조건 5개를 다 검사할 수 없음).
+    applicable: bool | None = None
+    applicable_n: int = 0  # 상위 K 중 ok 이상인 수
+    # "matches": 상위 K(ok 이상)로 계산. "baseline": 전체 과거 분포로 대체(applicable=False).
+    forward_summary_source: str = "matches"
+    mode: str = "shape"
 
 
 def _clean_close(close: pd.Series) -> pd.Series:
@@ -204,6 +220,47 @@ def _select_with_gap(
     return chosen
 
 
+def apply_fit(
+    matches: list[Match],
+    hist: pd.Series,
+    macro_in: dict[str, pd.Series],
+    cycle_in: dict[str, pd.Series],
+    fwd_all: pd.DataFrame,
+    cfg: SimilarityConfig,
+) -> tuple[list[FitCheck], bool | None, int, pd.DataFrame, str]:
+    """적합 기준(23절)을 상위 K에 적용한다. 반환: (fit, applicable, applicable_n, summary, source).
+
+    - fit: 국면마다 조건 5개 검사 결과(matches 순서).
+    - 기준일(now) 쪽에 금리·업황 값이 없어 조건을 다 검사할 수 없으면 판정 불가: applicable=None,
+      summary는 상위 K 전체(기존 동작), source="matches".
+    - ok 이상이 fit_min_applicable개 이상 → applicable=True, summary는 ok 이상만.
+    - ok 이상이 있지만 그보다 적으면 applicable=False, summary는 그래도 ok 이상만
+      (n이 작다는 사실을 숨기지 않는다).
+    - ok 이상이 하나도 없으면 applicable=False, summary는 기준선(전체 과거), source="baseline".
+    """
+    anchor = hist.index[-1]
+    feats = build_fit_features(hist, macro_in, cycle_in, cfg)
+    now = features_at(feats, anchor)
+    fits = [check_fit(features_at(feats, m.end_date), now, cfg) for m in matches]
+    chosen_dates = pd.DatetimeIndex([m.end_date for m in matches])
+    if not now.complete:
+        return (
+            fits,
+            None,
+            sum(1 for f in fits if is_ok(f)),
+            (summarize_forward(fwd_all.loc[chosen_dates], cfg.horizons)),
+            "matches",
+        )
+    ok_dates = pd.DatetimeIndex(
+        [m.end_date for m, f in zip(matches, fits, strict=True) if is_ok(f)]
+    )
+    n_ok = len(ok_dates)
+    if n_ok == 0:
+        return fits, False, 0, baseline_forward_summary(hist, cfg.horizons), "baseline"
+    summary = summarize_forward(fwd_all.loc[ok_dates], cfg.horizons)
+    return fits, n_ok >= cfg.fit_min_applicable, n_ok, summary, "matches"
+
+
 def summarize_forward(fwd: pd.DataFrame, horizons: tuple[int, ...]) -> pd.DataFrame:
     """index=horizon, columns=median,p10,p90,n_up,n_down,n. NaN은 제외하고 집계."""
     rows = []
@@ -325,8 +382,9 @@ def score(
                 start_date=hist.index[start_idx],
             )
         )
-    chosen_dates = pd.DatetimeIndex([m.end_date for m in matches])
-    summary = summarize_forward(fwd_all.loc[chosen_dates], cfg.horizons)
+    fits, applicable, applicable_n, summary, source = apply_fit(
+        matches, hist, macro_in, cycle_in, fwd_all, cfg
+    )
     cand_table = pd.DataFrame(
         {**layer_scores, "combined": combined, "euclid_rank": eucl_rank, "dtw_rank": dtw_rank},
         index=cands.index,
@@ -342,4 +400,9 @@ def score(
         weights_used=weights_used,
         requested_as_of=requested,
         candidates=cand_table,
+        fit=fits,
+        applicable=applicable,
+        applicable_n=applicable_n,
+        forward_summary_source=source,
+        mode="shape",
     )

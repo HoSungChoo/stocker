@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pandas as pd
 
-from stocker.similarity.config import CYCLE_METRICS, SimilarityConfig
+from stocker.similarity.config import (
+    CYCLE_METRICS,
+    REGIME_EVENT_KINDS,
+    REGIME_EXTRA_SERIES,
+    SimilarityConfig,
+)
 from stocker.similarity.engine import SimilarityResult, score
 
 SOX_SYMBOL = "^SOX"
@@ -48,9 +53,23 @@ def load_cycle(metrics=CYCLE_METRICS, engine=None) -> dict[str, pd.Series] | Non
     return out or None
 
 
+def load_events(kinds=REGIME_EVENT_KINDS, engine=None) -> pd.DataFrame | None:
+    """환경 우선 모드의 정책·전쟁 이벤트(read_events). 테이블이 없거나 비면 None."""
+    try:
+        from stocker.db import read_events
+    except ImportError:
+        return None
+    try:
+        df = read_events(kinds=list(kinds), engine=engine)
+    except Exception:  # noqa: BLE001  (테이블 없음 등 → 이벤트 없음으로 처리)
+        return None
+    return None if df is None or df.empty else df
+
+
 def load_inputs(
     config: SimilarityConfig | None = None, engine=None
 ) -> tuple[pd.Series, dict[str, pd.Series] | None, dict[str, pd.Series] | None]:
+    """모양 우선 모드의 입력 (종가, 매크로, 사이클)."""
     cfg = config or SimilarityConfig()
     if engine is None:
         from stocker.db import get_engine
@@ -62,8 +81,70 @@ def load_inputs(
     return close, macro, cycle
 
 
-def run(as_of, config: SimilarityConfig | None = None, engine=None) -> SimilarityResult:
+def load_all_inputs(
+    config: SimilarityConfig | None = None, engine=None
+) -> tuple[
+    pd.Series, dict[str, pd.Series] | None, dict[str, pd.Series] | None, pd.DataFrame | None
+]:
+    """두 모드 모두에 쓸 수 있는 입력 (종가, 매크로+환경 시리즈, 사이클, 이벤트).
+
+    매크로 dict에는 환경 우선 모드용 시리즈(CPI, M2, WALCL)가 더 들어 있다. 모양 우선 score()에
+    그대로 넘기면 매크로 레이어가 달라지므로, 모양 우선에는 `macro_for_shape`로 걸러 넘긴다.
+    """
     cfg = config or SimilarityConfig()
+    if engine is None:
+        from stocker.db import get_engine
+
+        engine = get_engine()
+    close = load_close(engine)
+    series = tuple(dict.fromkeys((*cfg.macro_series, *REGIME_EXTRA_SERIES)))
+    macro = load_macro(series, engine)
+    cycle = load_cycle(engine=engine)
+    events = load_events(engine=engine)
+    return close, macro, cycle, events
+
+
+def macro_for_shape(
+    macro: dict[str, pd.Series] | None, config: SimilarityConfig | None = None
+) -> dict[str, pd.Series] | None:
+    """모양 우선 모드가 쓰는 시리즈(cfg.macro_series)만 남긴다."""
+    cfg = config or SimilarityConfig()
+    if not macro:
+        return None
+    out = {k: v for k, v in macro.items() if k in cfg.macro_series}
+    return out or None
+
+
+def score_mode(
+    as_of,
+    close: pd.Series,
+    macro: dict[str, pd.Series] | None,
+    cycle: dict[str, pd.Series] | None,
+    events: pd.DataFrame | None = None,
+    config: SimilarityConfig | None = None,
+    mode: str | None = None,
+) -> SimilarityResult:
+    """mode(없으면 config.mode)에 따라 score 또는 score_regime을 돌린다 (순수 함수)."""
+    cfg = config or SimilarityConfig()
+    m = mode or cfg.mode
+    if m == "regime":
+        from stocker.similarity.regime import score_regime
+
+        return score_regime(as_of, close, macro, cycle, events, cfg)
+    if m == "shape":
+        return score(as_of, close, macro_for_shape(macro, cfg), cycle, cfg)
+    raise ValueError(f"mode는 shape|regime: {m!r}")
+
+
+def run(
+    as_of, config: SimilarityConfig | None = None, engine=None, mode: str | None = None
+) -> SimilarityResult:
+    """DB에서 읽어 한 시점을 평가한다. mode가 없으면 config.mode(기본 shape)."""
+    cfg = config or SimilarityConfig()
+    m = mode or cfg.mode
+    if m == "regime":
+        close, macro, cycle, events = load_all_inputs(cfg, engine)
+        return score_mode(as_of, close, macro, cycle, events, cfg, "regime")
     close, macro, cycle = load_inputs(cfg, engine)
     return score(as_of, close, macro, cycle, cfg)
 

@@ -35,6 +35,19 @@ export function LayersBanner({ missing }: { missing: string[] }) {
   )
 }
 
+/** 적합한 과거 사례가 없을 때(applicable=false) 페이지 맨 위에 띄운다. */
+export function NotApplicableBanner() {
+  return (
+    <div
+      role="status"
+      data-testid="not-applicable-banner"
+      className="rounded-xl border border-[#6b4f1d] bg-[#2a2113] text-[#f0c070] px-5 py-3 text-sm"
+    >
+      <b>현재와 충분히 닮은 과거 사례가 없다.</b> 아래 분포는 전체 과거 기준이다.
+    </div>
+  )
+}
+
 export function Honesty({ children }: { children: ReactNode }) {
   return (
     <footer className="px-5 py-4 border border-dashed border-edge rounded-xl text-sm flex flex-wrap gap-x-6 gap-y-2 items-center">

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from stocker.api import data
-from stocker.api.common import Common, iso, num
+from stocker.api.common import Common, iso, jsonable, num
 from stocker.api.schemas import ForwardSummaryRow, MatchOut, SimilarityOut
 from stocker.similarity.engine import SimilarityResult
 
@@ -37,6 +37,8 @@ def result_out(res: SimilarityResult) -> SimilarityOut:
         )
         for h, r in res.forward_summary.iterrows()
     ]
+    fit = getattr(res, "fit", None)  # 세션 R의 적합 판정(23절). 아직 없으면 전부 null
+    applicable_n = getattr(res, "applicable_n", None)
     return SimilarityOut(
         as_of=iso(res.as_of),
         window=cfg.window,
@@ -46,6 +48,11 @@ def result_out(res: SimilarityResult) -> SimilarityOut:
         weights_used={k: float(v) for k, v in res.weights_used.items()},
         matches=matches,
         forward_summary=summary,
+        mode=getattr(cfg, "mode", None),
+        fit=None if fit is None else jsonable(list(fit)),
+        applicable=getattr(res, "applicable", None),
+        applicable_n=None if applicable_n is None else int(applicable_n),
+        forward_summary_source=getattr(res, "forward_summary_source", None),
     )
 
 

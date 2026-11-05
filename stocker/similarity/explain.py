@@ -19,6 +19,7 @@ from dataclasses import asdict, dataclass, field
 import pandas as pd
 
 from stocker.sim.leveraged import forward_returns
+from stocker.similarity.comment import build_comment
 from stocker.similarity.config import SimilarityConfig
 from stocker.similarity.engine import _clean_close, _truncate, score
 from stocker.similarity.features import (
@@ -97,6 +98,9 @@ class Explanation:
     cycle: list[CycleExplanation]
     forward: dict[int, float | None]
     layers_missing: list[str] = field(default_factory=list)
+    # 평가표 코멘트(26절). explain()은 적합 판정(fit)을 모르므로 fit 없는 문장을 넣고,
+    # API가 fit이 있으면 build_comment(exp, fit)로 다시 만든다.
+    comment: str = ""
 
     def to_dict(self) -> dict:
         """JSON 가능한 dict (날짜는 YYYY-MM-DD, horizon 키는 문자열)."""
@@ -232,7 +236,7 @@ def explain(
     forward = {int(h): _opt(fwd[f"fwd_{h}"]) for h in cfg.horizons}
 
     scores = {k: _opt(row[k]) for k in ("price_shape", "macro", "semi_cycle") if k in cands}
-    return Explanation(
+    exp = Explanation(
         as_of=anchor,
         match=MatchSummary(start=start, end=end, combined=_opt(row["combined"]), scores=scores),
         price=price,
@@ -241,6 +245,8 @@ def explain(
         forward=forward,
         layers_missing=list(result.layers_missing),
     )
+    exp.comment = build_comment(exp)
+    return exp
 
 
 def explain_db(

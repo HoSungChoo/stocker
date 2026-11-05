@@ -201,6 +201,76 @@ def test_explain_schema_and_errors(client):
     assert client.get(f"/api/explain?end={LAST:%Y-%m-%d}").status_code == 404  # 후보 아님
 
 
+# ------------------------------------------------------------------ Phase 6: 코멘트·적합·mode
+def test_explain_has_comment(client):
+    end = client.get("/api/similarity").json()["matches"][0]["end"]
+    b = client.get(f"/api/explain?end={end}").json()
+    sentences = [x for x in b["comment"].split(". ") if x]
+    assert 3 <= len(sentences) <= 4  # 닮은 점 · 다른 점 · 판정 (· 결과)
+    assert "이 국면은" in b["comment"]
+    # 같은 쿼리는 같은 문장 (결정적)
+    assert client.get(f"/api/explain?end={end}").json()["comment"] == b["comment"]
+
+
+def test_similarity_phase6_fields_are_null_without_fit(client):
+    b = client.get("/api/similarity").json()
+    # 엔진이 fit을 아직 안 내면 새 필드는 전부 null (프론트는 null이면 배너·배지를 숨긴다)
+    for key in ("fit", "applicable", "applicable_n", "forward_summary_source"):
+        assert key in b
+    if b["fit"] is None:
+        assert b["applicable"] is None and b["applicable_n"] is None
+        assert b["forward_summary_source"] is None
+
+
+def test_similarity_passes_fit_through_and_explain_uses_status(client, monkeypatch):
+    orig = api_data.similarity
+    nan = float("nan")
+
+    def with_fit(q):
+        res = orig(q)
+        statuses = ["weak", "ok", "strong", "weak", "ok"]
+        res.fit = [
+            {
+                "conditions": [
+                    {
+                        "name": "낙폭 깊이",
+                        "then": -0.3,
+                        "now": nan,
+                        "tolerance": 0.08,
+                        "passed": False,
+                    }
+                ],
+                "n_passed": 1,
+                "status": st,
+            }
+            for st in statuses
+        ]
+        res.applicable = False
+        res.applicable_n = 0
+        res.forward_summary_source = "baseline"
+        return res
+
+    monkeypatch.setattr(api_data, "similarity", with_fit)
+    b = client.get("/api/similarity").json()
+    assert [f["status"] for f in b["fit"]] == ["weak", "ok", "strong", "weak", "ok"]
+    assert b["fit"][0]["conditions"][0]["now"] is None  # NaN → null
+    assert b["applicable"] is False and b["applicable_n"] == 0
+    assert b["forward_summary_source"] == "baseline"
+
+    # explain의 판정 문장은 해당 국면의 fit.status를 따른다 (1위 = weak, 3위 = strong)
+    first, third = b["matches"][0]["end"], b["matches"][2]["end"]
+    c1 = client.get(f"/api/explain?end={first}").json()["comment"]
+    c3 = client.get(f"/api/explain?end={third}").json()["comment"]
+    assert "닮았다고 보기 어려운 사례(참고용)" in c1
+    assert "위치·환경 모두 닮은 사례" in c3
+
+
+def test_mode_param_is_accepted_or_ignored(client):
+    assert client.get("/api/similarity?mode=shape").status_code == 200
+    assert client.get("/api/similarity?mode=regime").status_code in (200, 400)  # 엔진에 따라
+    assert client.get("/api/similarity?mode=bogus").status_code == 400
+
+
 # ------------------------------------------------------------------ events
 def test_events_upcoming(client):
     r = client.get("/api/events/upcoming?days=14")

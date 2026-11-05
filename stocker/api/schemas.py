@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -43,6 +45,13 @@ class SimilarityOut(BaseModel):
     weights_used: dict[str, float]
     matches: list[MatchOut]
     forward_summary: list[ForwardSummaryRow]
+    # --- Phase 6 (계약 23·24절). 엔진이 아직 만들지 않으면 전부 null ---
+    mode: str | None = None  # "shape" | "regime"
+    # matches와 같은 순서의 적합 판정 {conditions:[{name,then,now,..,passed}],n_passed,status}
+    fit: list[dict[str, Any]] | None = None
+    applicable: bool | None = None  # False면 "현재와 충분히 닮은 과거 사례가 없다"
+    applicable_n: int | None = None
+    forward_summary_source: str | None = None  # "matches" | "baseline"
 
 
 class Point(BaseModel):
@@ -127,6 +136,7 @@ class ExplainOut(BaseModel):
     cycle: list[ExplainCycle]
     forward: dict[str, float | None]
     layers_missing: list[str] = Field(default_factory=list)
+    comment: str = ""  # 평가표 코멘트 (계약 26절)
 
 
 class UpcomingEvent(BaseModel):

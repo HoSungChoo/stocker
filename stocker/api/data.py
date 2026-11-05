@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import inspect
 import logging
 
 import pandas as pd
@@ -83,10 +84,39 @@ def similarity(q: CommonQuery) -> SimilarityResult:
     """쿼리별 캐시된 유사도 결과."""
 
     def compute():
+        if q.mode:
+            res = _run_with_mode(q)
+            if res is not None:
+                return res
         close, macro, cycle = inputs()
         return score(resolve_as_of(q), close, macro, cycle, q.config())
 
     return result_cache.get_or_set(make_key("similarity", q.key()), compute)
+
+
+def _run_with_mode(q: CommonQuery) -> SimilarityResult | None:
+    """loaders.run이 mode를 받으면(세션 R, 계약 24절) 그것으로 계산한다. 아니면 None → 기본 경로."""
+    from stocker.similarity import loaders
+
+    if "mode" not in inspect.signature(loaders.run).parameters:
+        return None
+    return loaders.run(resolve_as_of(q), q.config(), engine=engine(), mode=q.mode)
+
+
+def fit_for(q: CommonQuery, end) -> object | None:
+    """상위 국면 중 끝 날짜가 end인 것의 적합 판정(FitCheck). 엔진이 fit을 안 내면 None."""
+    try:
+        res = similarity(q)
+    except ValueError:
+        return None
+    fits = getattr(res, "fit", None)
+    if not fits:
+        return None
+    end_ts = pd.Timestamp(end)
+    for m, f in zip(res.matches, fits, strict=False):
+        if pd.Timestamp(m.end_date) == end_ts:
+            return f
+    return None
 
 
 def explanation(q: CommonQuery, end: str) -> Explanation:

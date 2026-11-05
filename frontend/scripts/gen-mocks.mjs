@@ -46,6 +46,18 @@ const matches = [
 ]
 const H = [21, 63, 126, 252]
 
+// 평가표 코멘트(계약 PHASE6 26절). stocker.similarity.comment.build_comment 출력을 그대로 고정한 값 (판정 문장은 아래 FIT_STATUS를 따른다).
+const COMMENTS = {
+  '2000-08-08': "낙폭이 -28.7% 대 -29.8%로 거의 같고, 고점 이후 151일 대 135일로 기간이 비슷하고, 둘 다 반도체 매출 증가기다. 다만 기준금리는 그때가 2.6%p 높았고, 매출 증가율은 +41% 대 +144%로 3.5배 벌어졌다. 이 국면은 위치는 닮았지만 환경은 다른 사례다. 이 국면 뒤 12개월 SOX는 -38.5%였다.",
+  '2022-04-25': "낙폭이 -24.7% 대 -29.8%로 비슷하고, 고점 이후 119일 대 135일로 기간이 비슷하고, 둘 다 반도체 매출 증가기다. 다만 기준금리는 그때가 3.5%p 낮았고, 매출 증가율은 +26% 대 +144%로 5.5배 벌어졌다. 이 국면은 위치는 닮았지만 환경은 다른 사례다. 이 국면 뒤 12개월 SOX는 -3.9%였다.",
+  '2025-03-20': "낙폭이 -22.1% 대 -29.8%로 비슷하고, 기준금리 4.3% 대 3.9%로 같은 수준이고, 둘 다 반도체 매출 증가기다. 다만 고점 이후 253일 대 135일로 기간이 다르고, 매출 증가율은 +18% 대 +144%로 8.1배 벌어졌다. 이 국면은 위치는 닮았지만 환경은 다른 사례다. 이 국면 뒤 12개월 SOX는 +68.9%였다.",
+  '2018-10-22': "고점 이후 98일 대 135일로 기간이 비슷하고, 기준금리 2.2% 대 3.9%로 비슷하고, 둘 다 반도체 매출 증가기다. 다만 낙폭이 -19.0% 대 -29.8%로 다르고, 매출 증가율은 +12% 대 +144%로 12배 벌어졌다. 이 국면은 닮았다고 보기 어려운 사례(참고용)다. 이 국면 뒤 12개월 SOX는 +27.7%였다.",
+  '2004-08-11': "고점 이후 90일 대 135일로 기간이 비슷하고, 둘 다 반도체 매출 증가기고, 10년물 4.3% 대 5.0%로 비슷하다. 다만 낙폭이 -18.0% 대 -29.8%로 다르고, 기준금리는 그때가 2.5%p 낮았다. 이 국면은 닮았다고 보기 어려운 사례(참고용)다. 이 국면 뒤 12개월 SOX는 +25.0%였다.",
+}
+// 적합 판정(23절) mock: 1~3위 ok, 4·5위 weak → applicable=true, applicable_n=3. 조건 5개의 then/now는 explain mock과 같은 값.
+const FIT_STATUS = { '2000-08-08': 'ok', '2022-04-25': 'ok', '2025-03-20': 'ok', '2018-10-22': 'weak', '2004-08-11': 'weak' }
+const FIT_PASSED = { ok: [true, true, false, true, false], weak: [false, true, false, true, false] }
+
 const similarity = {
   as_of: '2026-11-04',
   window: W,
@@ -67,6 +79,19 @@ const similarity = {
     { horizon: 126, median: 0.121, p10: -0.289, p90: 0.318, n_up: 3, n_down: 2, n: 5 },
     { horizon: 252, median: 0.25, p10: -0.247, p90: 0.525, n_up: 3, n_down: 2, n: 5 },
   ],
+  mode: 'shape',
+  fit: matches.map((m) => {
+    const status = FIT_STATUS[m.end]
+    const passed = FIT_PASSED[status]
+    return {
+      conditions: ['낙폭 깊이', '낙폭 기간', '금리 환경', '업황 방향', '변동성'].map((name, k) => ({ name, then: null, now: null, tolerance: null, passed: passed[k] })),
+      n_passed: passed.filter(Boolean).length,
+      status,
+    }
+  }),
+  applicable: true,
+  applicable_n: 3,
+  forward_summary_source: 'matches',
 }
 
 const overlay = {
@@ -154,6 +179,7 @@ for (const m of matches) {
       { metric: 'wsts_yoy_chg6m', label: 'YoY 6개월 변화', then: t.chg, now: 0.3 },
     ],
     forward: Object.fromEntries(H.map((h, i) => [String(h), m.f[i]])),
+    comment: COMMENTS[m.end],
   }
 }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ExplainResponse, Match, SimilarityQuery } from '../api'
+import type { ExplainResponse, FitCheck, Match, SimilarityQuery } from '../api'
 import { useExplain } from '../hooks'
 import { fmtDays, fmtMacro, HORIZONS, HORIZON_LABEL, LAYER_LABEL, pct, score, signClass } from '../lib/format'
 import { rankColor } from '../lib/palette'
@@ -48,12 +48,24 @@ export function evidenceRows(e: ExplainResponse): EvidenceRow[] {
   return rows
 }
 
+/** 코멘트 블록: 서버가 만든 규칙 기반 문장(계약 PHASE6 26절)을 그대로 보여준다. */
+export function CommentBlock({ comment }: { comment: string }) {
+  return (
+    <p className="m-0 text-[13px] leading-relaxed text-sub border-l-2 border-edge pl-3" data-testid="eval-comment">
+      <span className="font-semibold">왜 비슷한가 · </span>
+      {comment}
+    </p>
+  )
+}
+
 function EvalCard({
   match,
+  fit,
   q,
   defaultExpanded,
 }: {
   match: Match
+  fit?: FitCheck
   q: SimilarityQuery
   defaultExpanded: boolean
 }) {
@@ -70,6 +82,15 @@ function EvalCard({
         <span className="mono text-[17px] font-semibold">
           {match.start} ~ {match.end}
         </span>
+        {fit?.status === 'weak' && (
+          <span
+            className="text-[12px] rounded-md border border-[#6b4f1d] bg-[#2a2113] text-[#f0c070] px-2 py-0.5"
+            title={`적합 조건 5개 중 ${fit.n_passed}개만 충족 — 닮았다고 보기 어렵다`}
+            data-testid="weak-badge"
+          >
+            참고용
+          </span>
+        )}
         <span className="mono ml-auto text-[26px] font-bold" title="종합 유사도 (0~1)">
           {score(match.combined)}
         </span>
@@ -123,6 +144,8 @@ function EvalCard({
         })}
       </div>
 
+      {expanded && explain.data?.comment && <CommentBlock comment={explain.data.comment} />}
+
       {!defaultExpanded && (
         <button
           type="button"
@@ -149,7 +172,16 @@ function FragmentRow({ label, value }: { label: string; value: number }) {
   )
 }
 
-export default function EvalCards({ matches, q }: { matches: Match[]; q: SimilarityQuery }) {
+export default function EvalCards({
+  matches,
+  fit,
+  q,
+}: {
+  matches: Match[]
+  /** matches 와 같은 순서의 적합 판정. 서버가 안 내면 undefined/null */
+  fit?: FitCheck[] | null
+  q: SimilarityQuery
+}) {
   const top = matches.slice(0, 3)
   const rest = matches.slice(3)
   return (
@@ -159,13 +191,13 @@ export default function EvalCards({ matches, q }: { matches: Match[]; q: Similar
         <span className="muted text-[13px]">점수는 0~1, 1이 가장 닮음. 레이어별 근거는 "그때 값 / 지금 값"으로 나란히 보여준다.</span>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        {top.map((m) => (
-          <EvalCard key={m.end} match={m} q={q} defaultExpanded />
+        {top.map((m, i) => (
+          <EvalCard key={m.end} match={m} fit={fit?.[i]} q={q} defaultExpanded />
         ))}
         {rest.length > 0 && (
           <div className="flex flex-col gap-4">
-            {rest.map((m) => (
-              <EvalCard key={m.end} match={m} q={q} defaultExpanded={false} />
+            {rest.map((m, i) => (
+              <EvalCard key={m.end} match={m} fit={fit?.[top.length + i]} q={q} defaultExpanded={false} />
             ))}
           </div>
         )}

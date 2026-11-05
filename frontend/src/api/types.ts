@@ -3,6 +3,8 @@
 export type LayerKey = 'price_shape' | 'macro' | 'semi_cycle'
 export type Horizon = 21 | 63 | 126 | 252
 export type WindowLen = 60 | 120 | 250
+/** 계약 PHASE6 24절: shape = 모양 우선(기본), regime = 환경 우선 */
+export type Mode = 'shape' | 'regime'
 
 /** 공통 쿼리: 계약 17절 */
 export interface SimilarityQuery {
@@ -13,6 +15,8 @@ export interface SimilarityQuery {
   w_macro?: number
   w_cycle?: number
   cycle_lag?: number
+  /** 엔진이 mode를 모르면 서버가 무시한다 */
+  mode?: Mode
 }
 
 export interface Health {
@@ -43,6 +47,23 @@ export interface ForwardSummary {
   n: number
 }
 
+/** 계약 PHASE6 23절. then/now/tolerance 는 조건마다 단위가 달라 숫자 또는 문자열(없으면 null). */
+export interface FitCondition {
+  name: string
+  then: number | string | null
+  now: number | string | null
+  tolerance: number | string | null
+  passed: boolean
+}
+
+export type FitStatus = 'strong' | 'ok' | 'weak'
+
+export interface FitCheck {
+  conditions: FitCondition[]
+  n_passed: number
+  status: FitStatus
+}
+
 export interface SimilarityResponse {
   as_of: string
   window: number
@@ -52,6 +73,14 @@ export interface SimilarityResponse {
   weights_used: Scores
   matches: Match[]
   forward_summary: ForwardSummary[]
+  /** Phase 6 필드. 서버(엔진)가 아직 안 내면 없거나 null → 배너·배지·토글을 숨긴다. */
+  mode?: Mode | null
+  /** matches 와 같은 순서 */
+  fit?: FitCheck[] | null
+  applicable?: boolean | null
+  applicable_n?: number | null
+  /** "baseline" 이면 분포가 전체 과거 기준선이다 */
+  forward_summary_source?: 'matches' | 'baseline' | null
 }
 
 export interface Point {
@@ -106,6 +135,8 @@ export interface ExplainResponse {
   macro: MacroRow[]
   cycle: CycleRow[]
   forward: Record<string, number | null>
+  /** 평가표 코멘트(계약 PHASE6 26절). 없으면 블록을 그리지 않는다. */
+  comment?: string
 }
 
 export interface UpcomingEvent {

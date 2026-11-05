@@ -133,5 +133,216 @@
    "n_down": 2,
    "n": 5
   }
- ]
+ ],
+ "mode": "shape",
+ "fit": [
+  {
+   "conditions": [
+    {
+     "name": "낙폭 깊이",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "낙폭 기간",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "금리 환경",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    },
+    {
+     "name": "업황 방향",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "변동성",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    }
+   ],
+   "n_passed": 3,
+   "status": "ok"
+  },
+  {
+   "conditions": [
+    {
+     "name": "낙폭 깊이",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "낙폭 기간",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "금리 환경",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    },
+    {
+     "name": "업황 방향",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "변동성",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    }
+   ],
+   "n_passed": 3,
+   "status": "ok"
+  },
+  {
+   "conditions": [
+    {
+     "name": "낙폭 깊이",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "낙폭 기간",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "금리 환경",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    },
+    {
+     "name": "업황 방향",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "변동성",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    }
+   ],
+   "n_passed": 3,
+   "status": "ok"
+  },
+  {
+   "conditions": [
+    {
+     "name": "낙폭 깊이",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    },
+    {
+     "name": "낙폭 기간",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "금리 환경",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    },
+    {
+     "name": "업황 방향",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "변동성",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    }
+   ],
+   "n_passed": 2,
+   "status": "weak"
+  },
+  {
+   "conditions": [
+    {
+     "name": "낙폭 깊이",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    },
+    {
+     "name": "낙폭 기간",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "금리 환경",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    },
+    {
+     "name": "업황 방향",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": true
+    },
+    {
+     "name": "변동성",
+     "then": null,
+     "now": null,
+     "tolerance": null,
+     "passed": false
+    }
+   ],
+   "n_passed": 2,
+   "status": "weak"
+  }
+ ],
+ "applicable": true,
+ "applicable_n": 3,
+ "forward_summary_source": "matches"
 }

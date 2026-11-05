@@ -1,4 +1,4 @@
-import type { ForwardSummary } from '../api'
+import type { ForwardSummary, Mode } from '../api'
 import { LAYER_LABEL } from '../lib/format'
 import { rebalance, type Weights } from '../lib/weights'
 
@@ -7,8 +7,14 @@ export interface ControlState {
   window: number
   topK: number
   weights: Weights
+  /** undefined = 서버 기본 */
+  mode?: Mode
 }
 
+const MODES: { key: Mode; label: string }[] = [
+  { key: 'shape', label: '모양 우선' },
+  { key: 'regime', label: '환경 우선' },
+]
 const WINDOWS = [60, 120, 250]
 const TOPKS = [3, 5, 7, 10]
 
@@ -20,9 +26,11 @@ interface Props {
   summary?: ForwardSummary
   layersMissing: string[]
   n?: number
+  /** 서버가 알려 준 현재 모드. null/undefined 면 서버가 mode 를 지원하지 않는 것이므로 토글을 숨긴다. */
+  serverMode?: Mode | null
 }
 
-export default function Controls({ state, onChange, asOfShown, candidates, summary, layersMissing, n }: Props) {
+export default function Controls({ state, onChange, asOfShown, candidates, summary, layersMissing, n, serverMode }: Props) {
   const set = (patch: Partial<ControlState>) => onChange({ ...state, ...patch })
   const sliders: { key: keyof Weights; label: string }[] = [
     { key: 'price', label: '가격 형태' },
@@ -58,6 +66,25 @@ export default function Controls({ state, onChange, asOfShown, candidates, summa
           SOX 지수(^SOX) 최근 {state.window}거래일을 {candidates != null ? `${candidates.toLocaleString('en-US')}개 창` : '과거 창'}과 비교
         </span>
       </div>
+
+      {serverMode && (
+        <div className="flex flex-col gap-2">
+          <span className="muted text-[13px]">비교 방식</span>
+          <div className="flex gap-2" role="group" aria-label="비교 방식">
+            {MODES.map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                className={`pill ${(state.mode ?? serverMode) === m.key ? 'on' : ''}`}
+                aria-pressed={(state.mode ?? serverMode) === m.key}
+                onClick={() => set({ mode: m.key })}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <span className="muted text-[13px]">창 길이(거래일)</span>

@@ -312,3 +312,58 @@ def read_event_impact(
         df = pd.read_sql(sa.text(sql), conn, params={"kinds": kinds, "limit": int(limit)})
     df["date"] = pd.to_datetime(df["date"])
     return df
+
+
+# ----------------------------------------------------------------- 백테스트 (PHASE6_CONTRACT 25절)
+BACKTEST_COLUMNS = [
+    "mode",
+    "as_of",
+    "horizon",
+    "median",
+    "p10",
+    "p90",
+    "n",
+    "applicable",
+    "realized",
+]
+
+
+def write_backtest_runs(df: pd.DataFrame, engine: sa.Engine | None = None) -> int:
+    """backtest_runs에 upsert. columns=BACKTEST_COLUMNS. 반환: 영향 행 수."""
+    if df is None or df.empty:
+        return 0
+    engine = engine or get_engine()
+    out = df[BACKTEST_COLUMNS].copy()
+    out["as_of"] = pd.to_datetime(out["as_of"])
+    out["created_at"] = pd.Timestamp.now(tz="UTC")
+    return upsert_df(out, "backtest_runs", ["mode", "as_of", "horizon"], engine=engine)
+
+
+def read_backtest_runs(
+    modes: list[str] | None = None,
+    horizon: int | None = None,
+    start=None,
+    end=None,
+    engine: sa.Engine | None = None,
+) -> pd.DataFrame:
+    """backtest_runs를 읽는다. columns=BACKTEST_COLUMNS+created_at. as_of는 tz-naive datetime64."""
+    engine = engine or get_engine()
+    sql = (
+        "SELECT mode, as_of, horizon, median, p10, p90, n, applicable, realized, created_at "
+        "FROM backtest_runs "
+        "WHERE (CAST(:modes AS text[]) IS NULL OR mode = ANY(CAST(:modes AS text[]))) "
+        "AND (CAST(:horizon AS int) IS NULL OR horizon = :horizon) "
+        "AND (CAST(:start AS date) IS NULL OR as_of >= :start) "
+        "AND (CAST(:end AS date) IS NULL OR as_of <= :end) "
+        "ORDER BY mode, as_of, horizon"
+    )
+    params = {
+        "modes": modes,
+        "horizon": horizon,
+        "start": _date_bound(start),
+        "end": _date_bound(end),
+    }
+    with engine.connect() as conn:
+        df = pd.read_sql(sa.text(sql), conn, params=params)
+    df["as_of"] = pd.to_datetime(df["as_of"])
+    return df

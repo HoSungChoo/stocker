@@ -98,3 +98,19 @@ CREATE TABLE IF NOT EXISTS event_impact (
     ret_3m      double precision,
     computed_at timestamptz      NOT NULL DEFAULT now()
 );
+
+-- 백테스트 결과 (PHASE6_CONTRACT 25절). 모드(baseline/shape/regime)×평가 시점×horizon마다 한 행.
+-- median/p10/p90은 그 시점에 낸 이후 수익 분포, realized는 실제 수익률, applicable은 적합 판정.
+CREATE TABLE IF NOT EXISTS backtest_runs (
+    mode        text             NOT NULL,
+    as_of       date             NOT NULL,
+    horizon     int              NOT NULL,
+    median      double precision,
+    p10         double precision,
+    p90         double precision,
+    n           int,
+    applicable  boolean,
+    realized    double precision,
+    created_at  timestamptz      NOT NULL DEFAULT now(),
+    PRIMARY KEY (mode, as_of, horizon)
+);
