@@ -85,7 +85,8 @@ def similarity(q: CommonQuery) -> SimilarityResult:
     """쿼리별 캐시된 유사도 결과."""
 
     def compute():
-        if q.mode:
+        # mode 쿼리가 없으면 엔진 기본값(config.mode)을 따른다. 기본은 환경 우선(2026-11-06).
+        if q.mode or q.config().mode == "regime":
             res = _run_with_mode(q)
             if res is not None:
                 return _with_baseline(res, q)
