@@ -360,7 +360,8 @@ tests/test_web.py   # charts.py 함수가 합성 데이터로 Figure를 만드�
 |---|---|
 | `REPORT_TIME` | 매일 실행 시각, KST `HH:MM`. 기본 `07:30` |
 | `REPORT_WINDOWS` | 쉼표 구분 창 길이. 기본 `120,250` |
-| `ANTHROPIC_API_KEY` | 있으면 LLM 요약 1단락 추가 (모델 `claude-sonnet-5-5`, max_tokens 600) |
+| `REPORT_LLM` | `on`일 때만 LLM 요약 활성. 기본 `off`. 키만으로는 켜지지 않는다(우발 호출 방지) |
+| `ANTHROPIC_API_KEY` | `REPORT_LLM=on`과 함께 있으면 LLM 요약 1단락 추가 (모델 `claude-sonnet-5-5`, max_tokens 600, 유료) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `REPORT_EMAIL_TO` | 모두 있으면 이메일 전송 |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | 둘 다 있으면 텔레그램 전송(stdlib urllib) |
 
@@ -387,7 +388,7 @@ def run_daily(engine=None) -> Report                         # refresh → build
 # stocker/report/llm.py
 def summarize(report) -> str | None                          # 키 없으면 None. anthropic SDK. 프롬프트: 사실만, 투자 권고 금지, 한국어 4~6문장
 # stocker/report/scheduler.py
-def main() -> None                                           # APScheduler BlockingScheduler, cron(월~금 REPORT_TIME, tz Asia/Seoul), 시작 시 즉시 1회 실행 옵션 --run-now
+def main() -> None                                           # APScheduler BlockingScheduler, cron(화~토 REPORT_TIME, tz Asia/Seoul; 미국 장은 KST 다음날 새벽 마감), 시작 시 즉시 1회 실행 옵션 --run-now
 ```
 CLI: `python -m stocker.report run [--as-of] [--no-deliver]`, `python -m stocker.report schedule [--run-now]`, `python -m stocker.report show [--date]`.
 

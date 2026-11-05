@@ -52,3 +52,13 @@ CREATE TABLE IF NOT EXISTS semi_cycle (
 );
 
 SELECT create_hypertable('semi_cycle', 'date', if_not_exists => TRUE, chunk_time_interval => INTERVAL '5 years');
+
+-- 아침 보고서 실행 기록. window=0 행에 전체 Markdown, window>0 행에 창별 결과(JSON).
+CREATE TABLE IF NOT EXISTS report_runs (
+    run_date    date        NOT NULL,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    "window"    int         NOT NULL,
+    result      jsonb,
+    report_md   text,
+    PRIMARY KEY (run_date, "window")
+);

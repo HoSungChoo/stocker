@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -165,3 +166,52 @@ def read_events(
         df = pd.read_sql(sa.text(sql), conn, params=params)
     df["date"] = pd.to_datetime(df["date"])
     return df
+
+
+def save_report_run(
+    run_date,
+    window: int,
+    result: dict | None,
+    report_md: str | None = None,
+    engine: sa.Engine | None = None,
+) -> None:
+    """report_runs에 (run_date, window) 한 행을 upsert. 같은 날 다시 실행하면 덮어쓴다."""
+    engine = engine or get_engine()
+    sql = (
+        'INSERT INTO report_runs (run_date, "window", result, report_md) '
+        "VALUES (:run_date, :window, CAST(:result AS jsonb), :report_md) "
+        'ON CONFLICT (run_date, "window") DO UPDATE SET '
+        "created_at = now(), result = EXCLUDED.result, report_md = EXCLUDED.report_md"
+    )
+    params = {
+        "run_date": _date_bound(run_date),
+        "window": int(window),
+        "result": None if result is None else json.dumps(result, ensure_ascii=False),
+        "report_md": report_md,
+    }
+    with engine.begin() as conn:
+        conn.execute(sa.text(sql), params)
+
+
+def read_report_run(
+    date=None,
+    window: int = 0,
+    before=None,
+    engine: sa.Engine | None = None,
+) -> dict | None:
+    """report_runs에서 한 행을 dict로 읽는다. 없으면 None.
+
+    date=None이면 해당 window의 가장 최근 run_date. before가 있으면 run_date < before 중
+    가장 최근(전일 비교용). 반환 키: run_date(date), created_at, window, result(dict), report_md.
+    """
+    engine = engine or get_engine()
+    sql = (
+        'SELECT run_date, created_at, "window", result, report_md FROM report_runs '
+        'WHERE "window" = :window AND (CAST(:date AS date) IS NULL OR run_date = :date) '
+        "AND (CAST(:before AS date) IS NULL OR run_date < :before) "
+        "ORDER BY run_date DESC LIMIT 1"
+    )
+    params = {"window": int(window), "date": _date_bound(date), "before": _date_bound(before)}
+    with engine.connect() as conn:
+        row = conn.execute(sa.text(sql), params).mappings().first()
+    return None if row is None else dict(row)

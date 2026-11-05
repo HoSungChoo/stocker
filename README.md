@@ -21,6 +21,13 @@ uv run python -m stocker.ingest fred
 uv run python -m stocker.sim --index SOXX --leverage 3 --start 2022-01-01 --compare SOXL
 ```
 
+아침 보고서 (결과: `data/reports/YYYY-MM-DD.md`):
+
+```bash
+make report                  # 지금 1회 생성
+docker compose up -d scheduler   # 매일 화~토 07:30 KST (미국 장 마감 다음날) 자동 생성 (REPORT_TIME으로 변경)
+```
+
 대시보드 (http://localhost:8501):
 
 ```bash

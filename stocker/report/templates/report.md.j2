@@ -1,0 +1,89 @@
+{#- 창 하나의 섹션. render_section_markdown()이 report_runs의 창별 행에 따로 저장한다. -#}
+{% macro section(s) %}
+### {{ s.window }}거래일 창 ({{ s.approx }})
+
+비교한 과거 창 {{ s.n_candidates }}개 중 가장 닮은 {{ s.n }}개 · 가중치 {{ s.weights }}
+{% if s.layers_missing %}
+
+> 꺼진 레이어: {{ s.layers_missing | join(", ") }} (가중치는 남은 레이어에 다시 나눠 적용)
+{% endif %}
+
+| 순위 | 구간 | {{ s.layer_headers | join(" | ") }} | 종합 | {{ s.fwd_label }} 수익 |
+|---|---|{% for _ in s.layer_headers %}---|{% endfor %}---|---|
+{% for r in s.rows %}
+| {{ r.rank }} | {{ r.period }} | {{ r.layers | join(" | ") }} | {{ r.combined }} | {{ r.fwd }} |
+{% endfor %}
+
+닮은 국면들의 이후 수익 (그 국면이 끝난 날 SOX 지수를 샀다면):
+
+| 기간 | 중앙값 | 하위 10% | 상위 10% | 상승 | 하락 | 표본 n |
+|---|---|---|---|---|---|---|
+{% for r in s.summary_rows %}
+| {{ r.label }} | {{ r.median }} | {{ r.p10 }} | {{ r.p90 }} | {{ r.up }} | {{ r.down }} | {{ r.n }} |
+{% endfor %}
+
+**전일 대비 변화** — {{ s.change.headline }}
+{% for line in s.change.lines %}
+- {{ line }}
+{% endfor %}
+{% endmacro %}
+# {{ title }}
+
+생성: {{ generated_at }} (데이터 기준일 {{ as_of }})
+
+## 데이터 상태
+
+| 소스 | 마지막 날짜 | 이번 갱신 | 비고 |
+|---|---|---|---|
+{% for s in status.sources %}
+| {{ s.name }} | {{ s.last_date or "—" }} | {{ s.refreshed }} | {{ s.note }} |
+{% endfor %}
+
+'이번 갱신'은 이번 실행에서 DB에 쓴 행 수다. 최근 구간을 다시 받아 덮어쓰므로 새로 생긴 데이터 수와는 다르다.
+
+{% if status.layers_missing %}
+꺼진 레이어: {{ status.layers_missing | join(", ") }}
+{% else %}
+꺼진 레이어: 없음
+{% endif %}
+{% for w in status.warnings %}
+
+> 주의: {{ w }}
+{% endfor %}
+
+## 창별 결과
+
+{% for s in sections %}
+{{ section(s) }}
+{% endfor %}
+## 이번 주 예정 이벤트
+
+{% if events %}
+{% for e in events %}
+- {{ e.date }} ({{ e.weekday }}) {{ e.label }}{% if e.symbol %} {{ e.symbol }}{% endif %}{% if e.title %} — {{ e.title }}{% endif %}
+
+{% endfor %}
+{% else %}
+앞으로 7일 안에 등록된 예정 이벤트가 없다.
+{% endif %}
+
+{% if summary %}
+## 요약 (AI)
+
+{{ summary }}
+
+_위 단락은 AI가 이 보고서의 사실만 요약한 것이다. 숫자는 위 표를 기준으로 하라._
+
+{% endif %}
+## 읽는 법과 한계
+
+{% for s in sections %}
+- {{ s.window }}거래일 창: 표본 {{ s.n }}개 · {{ s.footer }}
+{% endfor %}
+- 이 보고서는 예측하지 않는다. 닮은 과거 몇 개의 결과가 어떻게 갈렸는지를 보여줄 뿐이며, 표본이 작아 결과는 크게 달라질 수 있다.
+- 점수는 0~1이고 1이 가장 닮음이다. 후보 전체 중 몇 번째로 닮았는지(순위)를 바꾼 값이라 절대적인 확률이 아니다.
+- 수익률은 SOX 지수 기준이다. SOXL(3배 레버리지)은 더 크게 움직이고 장기 보유 시 깎인다(레버리지 감가).
+
+## 대시보드
+
+[{{ dashboard_url }}]({{ dashboard_url }}) — 창 길이·가중치를 바꿔 보고 차트로 확인할 수 있다.

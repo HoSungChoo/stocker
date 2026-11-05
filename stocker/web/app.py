@@ -7,6 +7,7 @@ import datetime as dt
 import pandas as pd
 import streamlit as st
 
+from stocker.db import read_report_run
 from stocker.web import charts, data
 
 st.set_page_config(page_title="stocker — SOX 국면 유사도", layout="wide")
@@ -17,6 +18,15 @@ LAYER_WARNINGS = {
     "semi_cycle": "산업 사이클 레이어 꺼짐 — `make seed` 후 `python -m stocker.ingest semi`",
 }
 WINDOWS = (60, 120, 250)
+
+
+@st.cache_data(ttl=300)
+def latest_report() -> dict | None:
+    """report_runs의 최신 전체 보고서(window=0). 테이블이 없거나 비어 있으면 None."""
+    try:
+        return read_report_run(engine=data._engine())
+    except Exception:  # noqa: BLE001  (report_runs가 아직 없는 DB)
+        return None
 
 
 def pct(x: float) -> str:
@@ -114,6 +124,15 @@ st.caption(
     "지금의 반도체 지수(SOX) 흐름이 과거 어느 때와 닮았는지 찾고, 그 뒤에 어떻게 됐는지 보여준다. "
     "예측기가 아니라 '닮은 과거 n개의 결과가 어떻게 갈렸는가'를 보는 도구다."
 )
+with st.expander("최신 보고서 보기"):
+    _report = latest_report()
+    if _report is None:
+        st.caption("저장된 보고서가 없다. `make report`로 한 번 생성하라.")
+    else:
+        st.caption(
+            f"보고서 기준일 {_report['run_date']} · 생성 {_report['created_at']:%Y-%m-%d %H:%M}"
+        )
+        st.markdown(_report["report_md"])
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("기준일", f"{anchor:%Y-%m-%d}", help="요청일 이하의 마지막 거래일")
 c2.metric(

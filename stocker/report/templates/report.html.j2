@@ -1,0 +1,86 @@
+{#- 이메일용: 외부 CSS·스크립트 없이 인라인 스타일만 쓴다. -#}
+{% macro th(text) %}<th style="text-align:left;padding:6px 10px;border-bottom:2px solid #444;white-space:nowrap">{{ text }}</th>{% endmacro %}
+{% macro td(text) %}<td style="padding:5px 10px;border-bottom:1px solid #ddd;white-space:nowrap">{{ text }}</td>{% endmacro %}
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>{{ title }}</title></head>
+<body style="margin:0;padding:16px;background:#f4f5f7;font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif;color:#1d1f23;line-height:1.55">
+<div style="max-width:760px;margin:0 auto;background:#fff;padding:20px 24px;border-radius:8px">
+<h1 style="font-size:22px;margin:0 0 4px">{{ title }}</h1>
+<p style="color:#666;margin:0 0 16px;font-size:13px">생성 {{ generated_at }} · 데이터 기준일 {{ as_of }}</p>
+
+<h2 style="font-size:17px;margin:20px 0 8px">데이터 상태</h2>
+<table style="border-collapse:collapse;font-size:13px">
+<tr>{{ th("소스") }}{{ th("마지막 날짜") }}{{ th("이번 갱신") }}{{ th("비고") }}</tr>
+{% for s in status.sources %}
+<tr>{{ td(s.name) }}{{ td(s.last_date or "—") }}{{ td(s.refreshed) }}{{ td(s.note) }}</tr>
+{% endfor %}
+</table>
+<p style="font-size:12px;color:#777;margin:6px 0">'이번 갱신'은 이번 실행에서 DB에 쓴 행 수다. 최근 구간을 다시 받아 덮어쓰므로 새로 생긴 데이터 수와는 다르다.</p>
+<p style="font-size:13px;margin:8px 0">꺼진 레이어: {{ status.layers_missing | join(", ") if status.layers_missing else "없음" }}</p>
+{% for w in status.warnings %}
+<p style="font-size:13px;margin:8px 0;padding:8px 10px;background:#fff4e5;border-left:4px solid #e08a00">주의: {{ w }}</p>
+{% endfor %}
+
+<h2 style="font-size:17px;margin:24px 0 8px">창별 결과</h2>
+{% for s in sections %}
+<h3 style="font-size:15px;margin:18px 0 4px">{{ s.window }}거래일 창 ({{ s.approx }})</h3>
+<p style="font-size:13px;color:#555;margin:0 0 8px">비교한 과거 창 {{ s.n_candidates }}개 중 가장 닮은 {{ s.n }}개 · 가중치 {{ s.weights }}</p>
+{% if s.layers_missing %}
+<p style="font-size:13px;margin:0 0 8px;padding:8px 10px;background:#fff4e5;border-left:4px solid #e08a00">꺼진 레이어: {{ s.layers_missing | join(", ") }}</p>
+{% endif %}
+<table style="border-collapse:collapse;font-size:13px">
+<tr>{{ th("순위") }}{{ th("구간") }}{% for h in s.layer_headers %}{{ th(h) }}{% endfor %}{{ th("종합") }}{{ th(s.fwd_label ~ " 수익") }}</tr>
+{% for r in s.rows %}
+<tr>{{ td(r.rank) }}{{ td(r.period) }}{% for v in r.layers %}{{ td(v) }}{% endfor %}{{ td(r.combined) }}{{ td(r.fwd) }}</tr>
+{% endfor %}
+</table>
+<p style="font-size:13px;margin:12px 0 4px">닮은 국면들의 이후 수익 (그 국면이 끝난 날 SOX 지수를 샀다면)</p>
+<table style="border-collapse:collapse;font-size:13px">
+<tr>{{ th("기간") }}{{ th("중앙값") }}{{ th("하위 10%") }}{{ th("상위 10%") }}{{ th("상승") }}{{ th("하락") }}{{ th("표본 n") }}</tr>
+{% for r in s.summary_rows %}
+<tr>{{ td(r.label) }}{{ td(r.median) }}{{ td(r.p10) }}{{ td(r.p90) }}{{ td(r.up) }}{{ td(r.down) }}{{ td(r.n) }}</tr>
+{% endfor %}
+</table>
+<p style="font-size:13px;margin:12px 0 4px"><strong>전일 대비 변화</strong> — {{ s.change.headline }}</p>
+{% if s.change.lines %}
+<ul style="font-size:13px;margin:4px 0 0;padding-left:20px">
+{% for line in s.change.lines %}
+<li>{{ line }}</li>
+{% endfor %}
+</ul>
+{% endif %}
+{% endfor %}
+
+<h2 style="font-size:17px;margin:24px 0 8px">이번 주 예정 이벤트</h2>
+{% if events %}
+<ul style="font-size:13px;margin:0;padding-left:20px">
+{% for e in events %}
+<li>{{ e.date }} ({{ e.weekday }}) {{ e.label }}{% if e.symbol %} {{ e.symbol }}{% endif %}{% if e.title %} — {{ e.title }}{% endif %}</li>
+{% endfor %}
+</ul>
+{% else %}
+<p style="font-size:13px;margin:0">앞으로 7일 안에 등록된 예정 이벤트가 없다.</p>
+{% endif %}
+
+{% if summary %}
+<h2 style="font-size:17px;margin:24px 0 8px">요약 (AI)</h2>
+<p style="font-size:14px;margin:0">{{ summary }}</p>
+<p style="font-size:12px;color:#777;margin:6px 0 0">위 단락은 AI가 이 보고서의 사실만 요약한 것이다. 숫자는 위 표를 기준으로 하라.</p>
+{% endif %}
+
+<h2 style="font-size:17px;margin:24px 0 8px">읽는 법과 한계</h2>
+<ul style="font-size:13px;margin:0;padding-left:20px">
+{% for s in sections %}
+<li>{{ s.window }}거래일 창: 표본 {{ s.n }}개 · {{ s.footer }}</li>
+{% endfor %}
+<li>이 보고서는 예측하지 않는다. 닮은 과거 몇 개의 결과가 어떻게 갈렸는지를 보여줄 뿐이며, 표본이 작아 결과는 크게 달라질 수 있다.</li>
+<li>점수는 0~1이고 1이 가장 닮음이다. 후보 전체 중 몇 번째로 닮았는지(순위)를 바꾼 값이라 절대적인 확률이 아니다.</li>
+<li>수익률은 SOX 지수 기준이다. SOXL(3배 레버리지)은 더 크게 움직이고 장기 보유 시 깎인다(레버리지 감가).</li>
+</ul>
+
+<h2 style="font-size:17px;margin:24px 0 8px">대시보드</h2>
+<p style="font-size:13px;margin:0"><a href="{{ dashboard_url }}">{{ dashboard_url }}</a> — 창 길이·가중치를 바꿔 보고 차트로 확인할 수 있다.</p>
+</div>
+</body>
+</html>

@@ -40,5 +40,22 @@ services:
       db:
         condition: service_healthy
 
+  scheduler:
+    build: .
+    command: python -m stocker.report schedule
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      STOCKER_DB_URL: postgresql+psycopg://stocker:stocker@db:5432/stocker
+      STOCKER_DATA_DIR: /app/data
+      TZ: Asia/Seoul
+    volumes:
+      - ./data:/app/data
+      - ./seed:/app/seed:ro  # 이미지에는 seed/가 없다 (semi·events 수집용)
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   stocker_pgdata:
