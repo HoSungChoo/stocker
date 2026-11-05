@@ -361,9 +361,10 @@ tests/test_web.py   # charts.py 함수가 합성 데이터로 Figure를 만드�
 | `REPORT_TIME` | 매일 실행 시각, KST `HH:MM`. 기본 `07:30` |
 | `REPORT_WINDOWS` | 쉼표 구분 창 길이. 기본 `120,250` |
 | `REPORT_LLM` | `on`일 때만 LLM 요약 활성. 기본 `off`. 키만으로는 켜지지 않는다(우발 호출 방지) |
-| `ANTHROPIC_API_KEY` | `REPORT_LLM=on`과 함께 있으면 LLM 요약 1단락 추가 (모델 `claude-sonnet-5-5`, max_tokens 600, 유료) |
+| `OPENAI_API_KEY` | `REPORT_LLM=on`과 함께 있으면 LLM 요약 1단락 추가 (유료, 사용자 결정 2026-11-05) |
+| `OPENAI_MODEL` | 기본 `gpt-6.1-sol` (고정). 공식 ID. `gpt-6-sol`은 구모델이므로 쓰지 않는다 |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `REPORT_EMAIL_TO` | 모두 있으면 이메일 전송 |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | 둘 다 있으면 텔레그램 전송(stdlib urllib) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | 둘 다 있으면 텔레그램 전송(stdlib urllib). **형식**: (1) `sendMessage`로 짧은 요약(≤3,500자, 표 없음: 제목, 창별 상위 3 국면과 12개월 후 수익, 중앙값·상승/하락 개수, 이번 주 이벤트, LLM 요약, 대시보드 링크; parse_mode 없이 평문) (2) `sendDocument`로 전체 `.md` 파일 첨부. 텔레그램은 4,096자 제한이 있고 Markdown 표를 렌더링하지 못한다 |
 
 ### 12.2 테이블 `report_runs`
 | 컬럼 | 타입 | 비고 |
@@ -386,7 +387,9 @@ def render_html(report) -> str                              # templates/report.h
 def deliver(report, md, html) -> list[str]                  # 활성 채널 목록 반환. 파일은 항상: data/reports/YYYY-MM-DD.md/.html
 def run_daily(engine=None) -> Report                         # refresh → build → render → store(report_runs) → deliver
 # stocker/report/llm.py
-def summarize(report) -> str | None                          # 키 없으면 None. anthropic SDK. 프롬프트: 사실만, 투자 권고 금지, 한국어 4~6문장
+def summarize(report) -> str | None
+    # REPORT_LLM=on 이고 OPENAI_API_KEY가 있을 때만. openai SDK(Responses API), model=OPENAI_MODEL(기본 gpt-6.1-sol),
+    # max_output_tokens 600. 프롬프트: 사실만, 투자 권고 금지, 한국어 4~6문장. 실패 시 None(보고서는 계속).
 # stocker/report/scheduler.py
 def main() -> None                                           # APScheduler BlockingScheduler, cron(화~토 REPORT_TIME, tz Asia/Seoul; 미국 장은 KST 다음날 새벽 마감), 시작 시 즉시 1회 실행 옵션 --run-now
 ```
@@ -402,7 +405,7 @@ CLI: `python -m stocker.report run [--as-of] [--no-deliver]`, `python -m stocker
 7. 대시보드 링크 `http://localhost:8501`
 
 ### 12.5 인프라
-- 의존성 추가: `jinja2`, `apscheduler>=3.10,<4`, `anthropic`(선택이지만 설치는 함). 이 세션만 pyproject·uv.lock 수정.
+- 의존성: `jinja2`, `apscheduler>=3.10,<4`, `openai`(`anthropic`은 제거). 이 세션만 pyproject·uv.lock 수정.
 - docker compose `scheduler` 서비스: `app` 이미지, 명령 `python -m stocker.report schedule`, `depends_on: db`, `restart: unless-stopped`, `TZ=Asia/Seoul`.
 - Makefile: `report`(즉시 1회), `schedule`.
 - 대시보드 `app.py` 상단에 "최신 보고서 보기" expander 추가(`report_runs` 최신 `report_md` 표시). 이 세션이 `stocker/web/app.py`를 이 목적에 한해 수정한다.
