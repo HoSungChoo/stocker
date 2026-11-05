@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+data/
+*.parquet
+*.duckdb
+.DS_Store
+.idea/
+.vscode/
+dist/
+build/
+*.egg-info/
