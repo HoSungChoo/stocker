@@ -1,0 +1,29 @@
+{{ title }}
+데이터 기준일 {{ as_of }}
+{% for s in sections %}
+
+[{{ s.window }}거래일 창 · {{ s.approx }}] 닮은 국면 상위 {{ s.top | length }}
+{% for r in s.top %}
+{{ r.rank }}. {{ r.period }} → {{ s.fwd_label }} {{ r.fwd }}
+{% endfor %}
+{{ s.fwd_label }} 중앙값 {{ s.median }} · 상승 {{ s.up }}개 / 하락 {{ s.down }}개
+{% endfor %}
+
+이번 주 예정 이벤트
+{% for e in events[:max_events] %}
+- {{ e.date[5:] }}({{ e.weekday }}) {{ e.label }}{% if e.symbol %} {{ e.symbol }}{% endif %}{% if e.title %} — {{ e.title }}{% endif %}
+
+{% else %}
+- 없음
+{% endfor %}
+{% if events | length > max_events %}
+- 외 {{ events | length - max_events }}건
+{% endif %}
+{% if summary %}
+
+요약 (AI)
+{{ summary }}
+{% endif %}
+
+대시보드 {{ dashboard_url }}
+표본 {{ samples }}개. 결과는 갈릴 수 있으며 예측하지 않는다.

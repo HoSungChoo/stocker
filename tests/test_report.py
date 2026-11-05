@@ -2,6 +2,8 @@
 
 import datetime as dt
 import json
+import urllib.request
+from email import message_from_bytes
 
 import pandas as pd
 import pytest
@@ -17,10 +19,13 @@ HORIZONS = (21, 63, 126, 252)
 
 @pytest.fixture(autouse=True)
 def _no_external_config(monkeypatch):
-    """개발 머신의 환경변수·.env가 테스트에 섞이지 않게 한다 (특히 ANTHROPIC_API_KEY)."""
+    """개발 머신의 환경변수·.env가 테스트에 섞이지 않게 한다 (특히 OPENAI_API_KEY)."""
     for name in (
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_BASE_URL",
+        "OPENAI_API_KEY",
+        "OPENAI_MODEL",
+        "OPENAI_BASE_URL",
         "REPORT_LLM",
         "REPORT_TIME",
         "REPORT_WINDOWS",
@@ -279,6 +284,107 @@ def test_deliver_enabled_channels_are_listed_and_failures_dropped(tmp_path, monk
     assert sent == ["email"]
 
 
+# --- 텔레그램
+
+
+def test_telegram_text_is_short_plain_and_has_required_parts():
+    text = pipeline.render_telegram(make_report())
+    assert len(text) <= 3500
+    assert "|" not in text and "---" not in text  # 표·Markdown 구분선 없음
+    assert "SOX 국면 보고서 — 2026-11-04" in text and "2026-11-04" in text
+    assert "[120거래일 창" in text and "[250거래일 창" in text
+    assert "2000-02-20 ~ 2000-08-08 → 12개월 후 +30.0%" in text  # 구간 → 12개월 후 수익
+    assert "상승 2개 / 하락 0개" in text and "중앙값 +25.0%" in text
+    assert "11-06(금) 고용보고서" in text  # 이번 주 이벤트
+    assert "요약 문장입니다." in text  # LLM 요약
+    assert "http://localhost:8501" in text
+    assert text.splitlines()[-1] == "표본 3개. 결과는 갈릴 수 있으며 예측하지 않는다."
+
+
+def test_telegram_text_shows_top3_only_and_omits_summary_when_absent():
+    report = make_report(summary=None)
+    res = make_result(
+        ends=("2000-08-08", "2021-11-02", "2024-09-26", "2010-01-04"),
+        combined=(0.95, 0.93, 0.92, 0.91),
+    )
+    report.sections[0] = pipeline.Section(120, res, report.sections[0].comparison)
+    text = pipeline.render_telegram(report)
+    assert "2010" not in text  # 4번째 국면은 요약에 넣지 않는다
+    assert "요약 (AI)" not in text
+
+
+def test_telegram_text_is_truncated_with_pointer_to_attachment():
+    report = make_report(summary="가" * 5000)
+    text = pipeline.render_telegram(report)
+    assert len(text) <= 3500
+    assert text.endswith("…(전체는 첨부 파일)")
+
+
+def _capture_urlopen(monkeypatch):
+    calls = []
+
+    class Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_a):
+            return False
+
+        def read(self):
+            return b"{}"
+
+    def fake(req, timeout=None):
+        calls.append(req)
+        return Resp()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    return calls
+
+
+def test_send_telegram_posts_message_then_document(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "TOK")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "42")
+    calls = _capture_urlopen(monkeypatch)
+    pipeline._send_telegram(make_report(), "# 전체 보고서\n| a | b |\n")
+
+    assert [c.full_url for c in calls] == [
+        "https://api.telegram.org/botTOK/sendMessage",
+        "https://api.telegram.org/botTOK/sendDocument",
+    ]
+    msg = json.loads(calls[0].data)
+    assert msg["chat_id"] == "42" and "parse_mode" not in msg  # 평문
+    assert msg["text"] == pipeline.render_telegram(make_report())
+
+    doc = calls[1]
+    ctype = doc.get_header("Content-type")
+    assert ctype.startswith("multipart/form-data; boundary=")
+    raw = b"Content-Type: " + ctype.encode() + b"\r\n\r\n" + doc.data
+    parsed = message_from_bytes(raw)
+    parts = {p.get_param("name", header="content-disposition"): p for p in parsed.get_payload()}
+    assert parts["chat_id"].get_payload(decode=True) == b"42"
+    document = parts["document"]
+    assert document.get_filename() == "2026-11-04.md"
+    assert document.get_payload(decode=True).decode("utf-8") == "# 전체 보고서\n| a | b |\n"
+
+
+def test_send_telegram_not_called_without_token(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "42")  # 토큰이 없으면 꺼진 채널
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda *a, **k: pytest.fail("텔레그램 요청이 나갔다")
+    )
+    assert pipeline.deliver(make_report(), "md", "html") == ["file"]
+
+
+def test_deliver_lists_telegram_when_both_requests_succeed(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "TOK")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "42")
+    calls = _capture_urlopen(monkeypatch)
+    assert pipeline.deliver(make_report(), "md", "html") == ["file", "telegram"]
+    assert len(calls) == 2
+
+
 # --- LLM 요약
 
 
@@ -286,49 +392,80 @@ def test_summarize_without_key_returns_none_and_never_calls_api(monkeypatch):
     def forbidden(*_a, **_k):
         raise AssertionError("키가 없는데 API 클라이언트를 만들었다")
 
-    monkeypatch.setattr(llm.anthropic, "Anthropic", forbidden)
+    monkeypatch.setattr(llm.openai, "OpenAI", forbidden)
+    monkeypatch.setenv("REPORT_LLM", "on")  # 스위치만 켜져 있고 키가 없다
     assert llm.summarize(make_report()) is None
 
 
-def test_summarize_key_without_switch_returns_none(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+def test_summarize_key_without_switch_never_creates_client(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")  # 스위치(REPORT_LLM)가 off
     monkeypatch.setattr(
-        llm.anthropic, "Anthropic", lambda **kw: (_ for _ in ()).throw(AssertionError("호출 금지"))
+        llm.openai, "OpenAI", lambda **kw: (_ for _ in ()).throw(AssertionError("호출 금지"))
     )
     assert llm.summarize(make_report()) is None
 
 
-def test_summarize_uses_facts_only_prompt_when_key_present(monkeypatch):
-    monkeypatch.setenv("REPORT_LLM", "on")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-    seen = {}
-
-    class FakeMessages:
+def _fake_openai(monkeypatch, seen, output_text=" 요약입니다. "):
+    class FakeResponses:
         def create(self, **kw):
             seen.update(kw)
-            block = type("B", (), {"type": "text", "text": " 요약입니다. "})()
-            return type("M", (), {"content": [block]})()
+            return type("R", (), {"output_text": output_text})()
 
     class FakeClient:
         def __init__(self, api_key):
-            self.messages = FakeMessages()
+            seen["api_key"] = api_key
+            self.responses = FakeResponses()
 
-    monkeypatch.setattr(llm.anthropic, "Anthropic", FakeClient)
+    monkeypatch.setattr(llm.openai, "OpenAI", FakeClient)
+
+
+def test_summarize_uses_facts_only_prompt_and_default_model(monkeypatch):
+    monkeypatch.setenv("REPORT_LLM", "on")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    seen = {}
+    _fake_openai(monkeypatch, seen)
     assert llm.summarize(make_report(summary=None)) == "요약입니다."
-    assert seen["model"] == "claude-sonnet-5-5" and seen["max_tokens"] == 600
-    assert "권고" in seen["system"] and "4~6문장" in seen["system"]
-    assert "요약 (AI)" not in seen["messages"][0]["content"]  # 요약 자신은 입력에서 제외
+    assert seen["api_key"] == "test-key"
+    assert seen["model"] == "gpt-6.1-sol" and seen["max_output_tokens"] == 600
+    assert "권고" in seen["instructions"] and "4~6문장" in seen["instructions"]
+    assert "2000-08-08" in seen["input"]  # 보고서의 사실이 프롬프트에 들어간다
+    assert "요약 (AI)" not in seen["input"]  # 요약 자신은 입력에서 제외
+
+
+def test_summarize_model_can_be_overridden_by_env(monkeypatch):
+    monkeypatch.setenv("REPORT_LLM", "on")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_MODEL", "other-model")
+    seen = {}
+    _fake_openai(monkeypatch, seen)
+    llm.summarize(make_report(summary=None))
+    assert seen["model"] == "other-model"
 
 
 def test_summarize_api_failure_returns_none(monkeypatch):
     monkeypatch.setenv("REPORT_LLM", "on")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     class Broken:
         def __init__(self, api_key):
             raise RuntimeError("boom")
 
-    monkeypatch.setattr(llm.anthropic, "Anthropic", Broken)
+    monkeypatch.setattr(llm.openai, "OpenAI", Broken)
+    assert llm.summarize(make_report(summary=None)) is None
+
+
+def test_summarize_call_failure_returns_none(monkeypatch):
+    monkeypatch.setenv("REPORT_LLM", "on")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    class FakeClient:
+        def __init__(self, api_key):
+            self.responses = self
+
+        def create(self, **_kw):
+            raise TimeoutError("slow")
+
+    monkeypatch.setattr(llm.openai, "OpenAI", FakeClient)
     assert llm.summarize(make_report(summary=None)) is None
 
 

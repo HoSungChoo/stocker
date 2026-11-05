@@ -1,4 +1,4 @@
-"""LLM 요약 (선택). REPORT_LLM=on 이고 ANTHROPIC_API_KEY가 있을 때만 API를 부른다.
+"""LLM 요약 (선택). REPORT_LLM=on 이고 OPENAI_API_KEY가 있을 때만 API를 부른다.
 
 둘 중 하나라도 없으면 None (과금 없음이 기본). 키만으로는 켜지지 않는다:
 개발 환경의 프로세스 변수에 키가 들어 있어 우발 호출이 난 적이 있다."""
@@ -7,14 +7,14 @@ from __future__ import annotations
 
 import logging
 
-import anthropic
+import openai
 
 from stocker.report import env
 
 logger = logging.getLogger(__name__)
 
-MODEL = "claude-sonnet-5-5"
-MAX_TOKENS = 600
+DEFAULT_MODEL = "gpt-6.1-sol"  # 고정. 공식 ID (계약 12.1)
+MAX_OUTPUT_TOKENS = 600
 
 SYSTEM_PROMPT = (
     "너는 반도체 지수(SOX) 국면 유사도 보고서를 요약하는 도우미다. "
@@ -31,7 +31,7 @@ def summarize(report) -> str | None:
     """보고서(사실)를 한 단락으로 요약. 키가 없거나 호출이 실패하면 None."""
     if (env("REPORT_LLM", "off") or "off").lower() not in ("on", "1", "true"):
         return None
-    key = env("ANTHROPIC_API_KEY")
+    key = env("OPENAI_API_KEY")
     if not key:
         return None
     # 순환 import 회피: pipeline이 이 모듈을 import한다
@@ -39,14 +39,14 @@ def summarize(report) -> str | None:
 
     facts = render_markdown(report, include_summary=False)
     try:
-        client = anthropic.Anthropic(api_key=key)
-        msg = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": f"다음 보고서를 요약하라.\n\n{facts}"}],
+        client = openai.OpenAI(api_key=key)
+        response = client.responses.create(
+            model=env("OPENAI_MODEL", DEFAULT_MODEL),
+            instructions=SYSTEM_PROMPT,
+            input=f"다음 보고서를 요약하라.\n\n{facts}",
+            max_output_tokens=MAX_OUTPUT_TOKENS,
         )
-        text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip()
+        text = (response.output_text or "").strip()
     except Exception as exc:  # noqa: BLE001  (요약 실패가 보고서 전체를 막지 않게)
         logger.warning("LLM 요약 실패, 건너뜀: %s", exc.__class__.__name__)
         return None

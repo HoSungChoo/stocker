@@ -11,6 +11,7 @@ import json
 import logging
 import smtplib
 import urllib.request
+import uuid
 from dataclasses import dataclass, field
 from email.message import EmailMessage
 from pathlib import Path
@@ -63,6 +64,11 @@ KIND_LABELS = {
     "election": "선거",
 }
 WEEKDAYS = "월화수목금토일"
+
+TELEGRAM_MAX_CHARS = 3500  # 텔레그램 한도는 4,096자. 여유를 둔다.
+TELEGRAM_TOP_N = 3
+TELEGRAM_MAX_EVENTS = 8
+TELEGRAM_TRUNCATED = "\n…(전체는 첨부 파일)"
 
 
 # ----------------------------------------------------------------- 데이터 구조
@@ -580,6 +586,33 @@ def render_section_markdown(report: Report, window: int) -> str:
     return module.section(section)
 
 
+def render_telegram(report: Report) -> str:
+    """templates/report.telegram.j2. 평문 요약(표 없음, 3,500자 이하). 전체는 .md 첨부로 보낸다."""
+    sections = []
+    for s in report.sections:
+        view = _section_view(s)
+        last = view["summary_rows"][-1]  # 가장 긴 기간(12개월)
+        sections.append(
+            view
+            | {
+                "top": view["rows"][:TELEGRAM_TOP_N],
+                "median": last["median"],
+                "up": last["up"],
+                "down": last["down"],
+            }
+        )
+    counts = sorted({v["n"] for v in sections})
+    ctx = _context(report) | {
+        "sections": sections,
+        "max_events": TELEGRAM_MAX_EVENTS,
+        "samples": "·".join(map(str, counts)),
+    }
+    text = _env(False).get_template("report.telegram.j2").render(**ctx).strip()
+    if len(text) > TELEGRAM_MAX_CHARS:
+        text = text[: TELEGRAM_MAX_CHARS - len(TELEGRAM_TRUNCATED)].rstrip() + TELEGRAM_TRUNCATED
+    return text
+
+
 def render_html(report: Report) -> str:
     """templates/report.html.j2. 이메일용이라 CSS는 모두 인라인."""
     return _env(True).get_template("report.html.j2").render(**_context(report))
@@ -607,16 +640,46 @@ def _send_email(subject: str, md: str, html: str) -> None:
         server.send_message(msg)
 
 
-def _send_telegram(text: str) -> None:
-    token, chat_id = env("TELEGRAM_BOT_TOKEN"), env("TELEGRAM_CHAT_ID")
-    body = json.dumps({"chat_id": chat_id, "text": text[:4000]}).encode("utf-8")
+def _telegram_post(token: str, method: str, body: bytes, content_type: str) -> None:
     req = urllib.request.Request(
-        f"https://api.telegram.org/bot{token}/sendMessage",
+        f"https://api.telegram.org/bot{token}/{method}",
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": content_type},
     )
     with urllib.request.urlopen(req, timeout=20) as resp:
         resp.read()
+
+
+def _multipart(fields: dict[str, str], filename: str, content: bytes) -> tuple[bytes, str]:
+    """sendDocument용 multipart/form-data 본문 (stdlib만 사용). (본문, Content-Type)을 돌려준다."""
+    boundary = uuid.uuid4().hex
+    parts: list[bytes] = []
+    for name, value in fields.items():
+        parts.append(
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'
+            f"{value}\r\n".encode()
+        )
+    parts.append(
+        f'--{boundary}\r\nContent-Disposition: form-data; name="document"; '
+        f'filename="{filename}"\r\nContent-Type: text/markdown; charset=utf-8\r\n\r\n'.encode()
+        + content
+        + b"\r\n"
+    )
+    parts.append(f"--{boundary}--\r\n".encode())
+    return b"".join(parts), f"multipart/form-data; boundary={boundary}"
+
+
+def _send_telegram(report: Report, md: str) -> None:
+    """(1) 평문 요약 sendMessage, (2) 전체 .md를 sendDocument로 첨부. 계약 12.1."""
+    token, chat_id = env("TELEGRAM_BOT_TOKEN"), env("TELEGRAM_CHAT_ID")
+    message = json.dumps(
+        {"chat_id": chat_id, "text": render_telegram(report), "disable_web_page_preview": True}
+    ).encode("utf-8")
+    _telegram_post(token, "sendMessage", message, "application/json")
+    body, content_type = _multipart(
+        {"chat_id": chat_id}, f"{report.as_of:%Y-%m-%d}.md", md.encode("utf-8")
+    )
+    _telegram_post(token, "sendDocument", body, content_type)
 
 
 def _email_configured() -> bool:
@@ -649,7 +712,7 @@ def deliver(report: Report, md: str, html: str) -> list[str]:
             logger.warning("이메일 전송 실패: %s", exc.__class__.__name__)
     if _telegram_configured():
         try:
-            _send_telegram(md)
+            _send_telegram(report, md)
             channels.append("telegram")
         except Exception as exc:  # noqa: BLE001  (URL에 토큰이 있어 메시지를 남기지 않는다)
             logger.warning("텔레그램 전송 실패: %s", exc.__class__.__name__)

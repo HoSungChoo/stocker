@@ -364,7 +364,7 @@ tests/test_web.py   # charts.py 함수가 합성 데이터로 Figure를 만드�
 | `OPENAI_API_KEY` | `REPORT_LLM=on`과 함께 있으면 LLM 요약 1단락 추가 (유료, 사용자 결정 2026-11-05) |
 | `OPENAI_MODEL` | 기본 `gpt-6.1-sol` (고정). 공식 ID. `gpt-6-sol`은 구모델이므로 쓰지 않는다 |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `REPORT_EMAIL_TO` | 모두 있으면 이메일 전송 |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | 둘 다 있으면 텔레그램 전송(stdlib urllib). **형식**: (1) `sendMessage`로 짧은 요약(≤3,500자, 표 없음: 제목, 창별 상위 3 국면과 12개월 후 수익, 중앙값·상승/하락 개수, 이번 주 이벤트, LLM 요약, 대시보드 링크; parse_mode 없이 평문) (2) `sendDocument`로 전체 `.md` 파일 첨부. 텔레그램은 4,096자 제한이 있고 Markdown 표를 렌더링하지 못한다 |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | 둘 다 있으면 텔레그램 전송(stdlib urllib). **형식**: (1) `sendMessage`로 짧은 요약(≤3,500자, 표 없음: 제목, 창별 상위 3 국면과 12개월 후 수익, 중앙값·상승/하락 개수, 이번 주 이벤트, LLM 요약, 대시보드 링크; parse_mode 없이 평문) (2) `sendDocument`로 전체 `.md` 파일 첨부(파일명 `YYYY-MM-DD.md`). 구현: `render_telegram(report) -> str`(템플릿 `report.telegram.j2`), `_send_telegram(report, md)`. 텔레그램은 4,096자 제한이 있고 Markdown 표를 렌더링하지 못한다 |
 
 ### 12.2 테이블 `report_runs`
 | 컬럼 | 타입 | 비고 |
