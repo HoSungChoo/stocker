@@ -19,6 +19,8 @@ from pathlib import Path
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
+from stocker.broker import positions as _positions
+from stocker.broker import toss as _toss
 from stocker.config import settings
 from stocker.db import (
     get_engine,
@@ -91,14 +93,27 @@ class Report:
     generated_at: dt.datetime = field(default_factory=dt.datetime.now)
     dashboard_url: str = DASHBOARD_URL
     channels: list[str] = field(default_factory=list)  # deliver()가 채운다
+    # 내 포지션(계약 15.4). 보유 SOXL이 없으면 None → 보고서에서 섹션째 생략.
+    positions: pd.DataFrame | None = None  # 보유 SOXL 행 (positions_snapshot 컬럼)
+    position_dist: dict[int, pd.DataFrame] = field(
+        default_factory=dict
+    )  # 창 길이 → apply_distribution
 
 
 class RefreshResult(dict):
-    """단계 → 처리 행 수. 실패한 단계는 -1이고 사유가 `errors`에 있다."""
+    """단계 → 처리 행 수. 실패한 단계는 -1이고 사유가 `errors`에 있다.
+
+    설정이 없어 건너뛴 단계(예: 토스 자격 증명 없음)는 값 없이 `skipped`에 사유만 남는다.
+    """
 
     def __init__(self) -> None:
         super().__init__()
         self.errors: dict[str, str] = {}
+        self.skipped: dict[str, str] = {}
+
+
+class _NotConfigured(Exception):
+    """선택 단계의 설정이 없다 (실패가 아니라 '미설정')."""
 
 
 # ----------------------------------------------------------------- 직렬화
@@ -259,11 +274,20 @@ def compare_with_previous(result, previous_result) -> dict:
 # ----------------------------------------------------------------- 데이터 갱신
 
 
+def _refresh_positions(engine) -> int:
+    """토스 보유 종목을 positions_snapshot에 저장. 자격 증명이 없으면 _NotConfigured."""
+    client = _toss.from_env(engine)
+    if client is None:
+        raise _NotConfigured("미설정")
+    return len(_positions.snapshot_positions(client, engine=engine))
+
+
 def refresh_data(engine=None, today: dt.date | None = None) -> RefreshResult:
-    """prices(최근 30일), fred(최근 60일), semi, events 순으로 수집한다.
+    """prices(최근 30일), fred(최근 60일), semi, events, positions 순으로 수집한다.
 
     모두 upsert라 겹쳐 받아도 중복이 생기지 않는다. 한 단계가 실패해도(네트워크, 키 없음 등)
     사유를 `errors`에 남기고 다음 단계로 간다. 실패한 단계의 값은 -1.
+    positions는 토스 자격 증명이 없으면 `skipped`에 "미설정"만 남기고 건너뛴다.
     """
     today = today or dt.date.today()
     steps = {
@@ -277,11 +301,14 @@ def refresh_data(engine=None, today: dt.date | None = None) -> RefreshResult:
         ),
         "semi": lambda: _semi.ingest_semi(engine=engine),
         "events": lambda: _events.ingest_events(engine=engine),
+        "positions": lambda: _refresh_positions(engine),
     }
     out = RefreshResult()
     for name, step in steps.items():
         try:
             out[name] = int(step())
+        except _NotConfigured as exc:
+            out.skipped[name] = str(exc)
         except Exception as exc:  # noqa: BLE001  (한 소스 실패가 보고서 전체를 막지 않게)
             logger.warning("%s 갱신 실패, 건너뜀: %s", name, exc)
             out[name] = -1
@@ -312,6 +339,14 @@ def _last_date(read, *args, engine) -> str | None:
     except Exception:  # noqa: BLE001
         return None
     return None if s.empty else _iso(s.index.max())
+
+
+def _positions_last_date(engine) -> str | None:
+    try:
+        df = _positions.latest_positions(engine, max_age_days=None)
+    except Exception:  # noqa: BLE001  (테이블이 아직 없는 DB 등)
+        return None
+    return None if df.empty else _iso(df["snapshot_date"].max())
 
 
 def collect_data_status(
@@ -349,10 +384,18 @@ def collect_data_status(
             "note": "월간 값이라 한 달 반쯤 늦게 나온다",
         },
         {"name": "이벤트", "key": "events", "last_date": ev_last, "note": ev_note},
+        {
+            "name": "내 포지션 (토스)",
+            "key": "positions",
+            "last_date": _positions_last_date(engine),
+            "note": "읽기 전용 조회",
+        },
     ]
     for s in sources:
         if refresh is None:
             s["refreshed"] = "갱신 안 함"
+        elif s["key"] in refresh.skipped:
+            s["refreshed"] = refresh.skipped[s["key"]]
         elif s["key"] in refresh.errors:
             s["refreshed"] = f"실패 ({refresh.errors[s['key']]})"
         else:
@@ -404,6 +447,33 @@ def _previous_result(engine, window: int, anchor: pd.Timestamp) -> dict | None:
     return None
 
 
+def _position_inputs(
+    engine, sections: list[Section], refresh: RefreshResult | None
+) -> tuple[pd.DataFrame | None, dict[int, pd.DataFrame]]:
+    """보유 SOXL과, 창마다 그 평가액에 유사 국면 분포를 적용한 표. 보유가 없으면 (None, {}).
+
+    포지션은 보고서를 막는 요소가 아니라 덤이므로 어떤 실패도 경고만 남기고 섹션을 생략한다.
+    """
+    if refresh is not None and refresh.get("positions") == 0:
+        return None, {}  # 방금 조회에 성공했는데 보유 종목이 없다 → 예전 스냅샷을 쓰지 않는다
+    try:
+        held = _positions.soxl_positions(_positions.latest_positions(engine))
+        if held is None:
+            return None, {}
+        value = float(held["market_value"].sum())
+        close = read_prices(SOX_SYMBOL, engine=engine)["close"].dropna()
+        rf = read_macro("DFF", engine=engine)
+        rf = None if rf.empty else rf
+        dist = {}
+        for s in sections:
+            lev = _positions.leveraged_returns(close, s.result.matches, s.window, rf)
+            dist[s.window] = _positions.apply_distribution(value, s.result.forward_summary, lev)
+        return held, dist
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("내 포지션 계산 실패, 섹션 생략: %s", exc.__class__.__name__)
+        return None, {}
+
+
 def build_report(
     as_of=None,
     windows=None,
@@ -429,6 +499,7 @@ def build_report(
     anchor = sections[0].result.as_of
 
     layers_missing = sorted({m for s in sections for m in s.result.layers_missing})
+    positions, position_dist = _position_inputs(engine, sections, refresh)
     if today is None:
         today = dt.date.today() if as_of is None else (anchor + pd.Timedelta(days=1)).date()
     report = Report(
@@ -436,6 +507,8 @@ def build_report(
         sections=sections,
         upcoming_events=_upcoming_events(engine, today),
         data_status=collect_data_status(engine, sections[0].result.config, refresh, layers_missing),
+        positions=positions,
+        position_dist=position_dist,
     )
     if use_llm:
         report.llm_summary = summarize(report)
@@ -549,8 +622,71 @@ def _section_view(section: Section) -> dict:
     }
 
 
+def _qty(x) -> str:
+    return f"{x:,.4f}".rstrip("0").rstrip(".")
+
+
+def _dist_cell(value, ret, cur) -> str:
+    return f"{_positions.money(value, cur)} ({pct(ret)})"
+
+
+def _position_view(report: Report) -> dict | None:
+    """'내 포지션' 섹션용 문자열 모음. 보유 SOXL이 없으면 None (템플릿이 섹션째 생략)."""
+    held = report.positions
+    if held is None or held.empty:
+        return None
+    holdings = []
+    for r in held.itertuples(index=False):
+        cur = r.currency
+        holdings.append(
+            {
+                "symbol": r.symbol,
+                "quantity": _qty(r.quantity),
+                "avg_price": _positions.money(r.avg_price, cur),
+                "value": _positions.money(r.market_value, cur),
+                "pnl": _positions.money(r.pnl, cur),
+                "pnl_rate": pct(r.pnl_rate),
+            }
+        )
+    cur = held["currency"].iloc[0]
+    value = float(held["market_value"].sum())
+    blocks = []
+    for s in report.sections:
+        dist = report.position_dist.get(s.window)
+        if dist is None or dist.empty:
+            continue
+        long_h = dist["horizon"].max()
+        rows = [
+            {
+                "basis": r.basis,
+                "median": _dist_cell(r.value_median, r.median, cur),
+                "p10": _dist_cell(r.value_p10, r.p10, cur),
+                "p90": _dist_cell(r.value_p90, r.p90, cur),
+                "n": int(r.n),
+            }
+            for r in dist[dist["horizon"] == long_h].itertuples(index=False)
+        ]
+        blocks.append(
+            {
+                "window": s.window,
+                "approx": f"약 {round(s.window / 21)}개월",
+                "horizon_label": horizon_label(int(long_h)),
+                "rows": rows,
+                "lev": next((r for r in rows if r["basis"] == _positions.BASIS_LEVERAGED), None),
+            }
+        )
+    return {
+        "snapshot_date": f"{held['snapshot_date'].max():%Y-%m-%d}",
+        "total_value": _positions.money(value, cur),
+        "holdings": holdings,
+        "blocks": blocks,
+        "disclaimer": _positions.DISCLAIMER,
+    }
+
+
 def _context(report: Report, include_summary: bool = True) -> dict:
     return {
+        "position": _position_view(report),
         "title": f"SOX 국면 보고서 — {report.as_of:%Y-%m-%d}",
         "as_of": f"{report.as_of:%Y-%m-%d}",
         "generated_at": f"{report.generated_at:%Y-%m-%d %H:%M}",

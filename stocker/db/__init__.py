@@ -215,3 +215,59 @@ def read_report_run(
     with engine.connect() as conn:
         row = conn.execute(sa.text(sql), params).mappings().first()
     return None if row is None else dict(row)
+
+
+def read_positions(start=None, end=None, engine: sa.Engine | None = None) -> pd.DataFrame:
+    """일별 보유 종목 스냅샷(positions_snapshot). snapshot_date는 tz-naive datetime64.
+
+    snapshot_date, symbol 오름차순. 없으면 빈 DataFrame(컬럼은 유지).
+    """
+    engine = engine or get_engine()
+    sql = (
+        "SELECT snapshot_date, symbol, name, market_country, currency, quantity, avg_price, "
+        "last_price, market_value, pnl, pnl_rate, source, fetched_at FROM positions_snapshot "
+        "WHERE (CAST(:start AS date) IS NULL OR snapshot_date >= :start) "
+        "AND (CAST(:end AS date) IS NULL OR snapshot_date <= :end) "
+        "ORDER BY snapshot_date, symbol"
+    )
+    params = {"start": _date_bound(start), "end": _date_bound(end)}
+    with engine.connect() as conn:
+        df = pd.read_sql(sa.text(sql), conn, params=params)
+    df["snapshot_date"] = pd.to_datetime(df["snapshot_date"])
+    return df
+
+
+def read_broker_token(client_id: str, engine: sa.Engine | None = None) -> dict | None:
+    """broker_tokens의 캐시된 토큰 한 행(access_token, expires_at, issued_at). 없으면 None."""
+    engine = engine or get_engine()
+    sql = (
+        "SELECT access_token, expires_at, issued_at FROM broker_tokens WHERE client_id = :client_id"
+    )
+    with engine.connect() as conn:
+        row = conn.execute(sa.text(sql), {"client_id": client_id}).mappings().first()
+    return None if row is None else dict(row)
+
+
+def write_broker_token(
+    client_id: str,
+    access_token: str,
+    expires_at: dt.datetime,
+    issued_at: dt.datetime | None = None,
+    engine: sa.Engine | None = None,
+) -> None:
+    """broker_tokens에 클라이언트당 한 행을 upsert (새 토큰이 이전 토큰을 대체)."""
+    engine = engine or get_engine()
+    sql = (
+        "INSERT INTO broker_tokens (client_id, access_token, expires_at, issued_at) "
+        "VALUES (:client_id, :access_token, :expires_at, :issued_at) "
+        "ON CONFLICT (client_id) DO UPDATE SET access_token = EXCLUDED.access_token, "
+        "expires_at = EXCLUDED.expires_at, issued_at = EXCLUDED.issued_at"
+    )
+    params = {
+        "client_id": client_id,
+        "access_token": access_token,
+        "expires_at": expires_at,
+        "issued_at": issued_at or dt.datetime.now(dt.UTC),
+    }
+    with engine.begin() as conn:
+        conn.execute(sa.text(sql), params)

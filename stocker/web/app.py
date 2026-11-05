@@ -7,6 +7,7 @@ import datetime as dt
 import pandas as pd
 import streamlit as st
 
+from stocker.broker import positions as bpos
 from stocker.db import read_report_run
 from stocker.web import charts, data
 
@@ -205,6 +206,62 @@ with left:
 with right:
     st.plotly_chart(
         charts.forward_figure(matches, cfg.horizons, window, close.index), width="stretch"
+    )
+
+# ------------------------------------------------------------------ 내 포지션
+st.subheader(
+    "내 포지션",
+    help="토스증권 오픈 API(읽기 전용)로 받은 보유 SOXL. 닮은 국면의 이후 수익을 내 평가액에 곱해 "
+    "금액으로 보여준다. 주문은 하지 않는다.",
+)
+held = data.load_positions()
+if held is None:
+    if data.broker_configured():
+        st.caption(
+            "보유 SOXL 스냅샷이 없다. 아래 버튼을 누르거나 `python -m stocker.broker snapshot`."
+        )
+    else:
+        st.caption("`.env`에 TOSS_CLIENT_ID/SECRET을 넣으면 표시")
+if data.broker_configured() and st.button("토스에서 지금 가져오기"):
+    try:
+        st.toast(f"{data.refresh_positions()}행 저장")
+    except Exception as exc:  # noqa: BLE001  (토스 오류 메시지에는 비밀값이 없다)
+        st.error(f"토스 조회 실패: {exc}")
+    else:
+        st.rerun()
+if held is not None:
+    cur = held["currency"].iloc[0]
+    value = float(held["market_value"].sum())
+    r0 = held.iloc[0]
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("수량", f"{r0['quantity']:,.4f}".rstrip("0").rstrip("."))
+    m2.metric("평단", bpos.money(r0["avg_price"], cur))
+    m3.metric("평가액", bpos.money(value, cur))
+    m4.metric("손익률", pct(r0["pnl_rate"] * 100))
+    lev = bpos.leveraged_returns(close, matches, window, rf=data.load_rf())
+    dist = bpos.apply_distribution(value, summary, lev)
+    dist_view = pd.DataFrame(
+        {
+            "기간": [f"{charts.horizon_name(h)} 후" for h in dist["horizon"]],
+            "기준": dist["basis"],
+            "중앙값": [bpos.money(v, cur) for v in dist["value_median"]],
+            "하위 10%": [bpos.money(v, cur) for v in dist["value_p10"]],
+            "상위 10%": [bpos.money(v, cur) for v in dist["value_p90"]],
+            "표본 n": dist["n"],
+            "중앙값 수익률 (%)": dist["median"] * 100,
+        }
+    )
+    st.dataframe(
+        dist_view,
+        hide_index=True,
+        column_config={"중앙값 수익률 (%)": st.column_config.NumberColumn(format="%+.1f")},
+        width="stretch",
+    )
+    st.caption(
+        f"스냅샷 {r0['snapshot_date']:%Y-%m-%d} 기준, 위에서 고른 기준일·창({window}거래일)의 "
+        "닮은 국면을 적용했다. '3배 레버리지 기준'은 국면마다 SOX 경로를 일별 3배로 따라간 값이라 "
+        "레버리지 감가가 들어 있고, 'SOX 기준'은 같은 금액이 지수만큼만 움직였다면의 참고 줄이다. "
+        f"{bpos.DISCLAIMER}"
     )
 
 # ------------------------------------------------------------------ 7. SOXL 시뮬

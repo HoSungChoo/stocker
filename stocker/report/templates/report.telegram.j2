@@ -8,6 +8,19 @@
 {% endfor %}
 {{ s.fwd_label }} 중앙값 {{ s.median }} · 상승 {{ s.up }}개 / 하락 {{ s.down }}개
 {% endfor %}
+{% if position %}
+
+내 포지션 (SOXL, {{ position.snapshot_date[5:] }} 기준)
+{% for h in position.holdings %}
+{{ h.quantity }}주 · 평단 {{ h.avg_price }} · 평가액 {{ h.value }} · 손익 {{ h.pnl_rate }}
+{% endfor %}
+{% for b in position.blocks if b.lev %}
+[{{ b.window }}거래일 창] 3배 레버리지로 따라갔다면 {{ b.horizon_label }} 평가액
+중앙값 {{ b.lev.median }}
+하위10% {{ b.lev.p10 }} · 상위10% {{ b.lev.p90 }} (표본 {{ b.lev.n }}개)
+{% endfor %}
+{{ position.disclaimer }}
+{% endif %}
 
 이번 주 예정 이벤트
 {% for e in events[:max_events] %}

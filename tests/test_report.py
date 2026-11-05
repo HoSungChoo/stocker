@@ -36,9 +36,15 @@ def _no_external_config(monkeypatch):
         "REPORT_EMAIL_TO",
         "TELEGRAM_BOT_TOKEN",
         "TELEGRAM_CHAT_ID",
+        "TOSS_CLIENT_ID",
+        "TOSS_CLIENT_SECRET",
+        "TOSS_ACCOUNT_SEQ",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr("stocker.report.dotenv_values", lambda *_a, **_k: {})
+    monkeypatch.setattr(
+        "stocker.broker.toss.dotenv_values", lambda *_a, **_k: {}
+    )  # 실제 토스 호출 방지
 
 
 def make_result(
@@ -532,6 +538,127 @@ def test_refresh_data_records_failure_and_continues(monkeypatch):
     assert dict(out) == {"prices": 40, "fred": -1, "semi": 498, "events": 1800}
     assert "FRED_API_KEY" in out.errors["fred"]
     assert calls[0][1]["start"] == "2026-10-06"  # 오늘 - 30일
+
+
+# --- 내 포지션 (계약 15.4)
+
+
+def make_positions():
+    """보유 SOXL 10주(평가액 $555)와 창별 분포 적용 결과."""
+    from stocker.broker import positions as bpos
+
+    held = pd.DataFrame(
+        [
+            {
+                "snapshot_date": pd.Timestamp("2026-11-05"),
+                "symbol": "SOXL",
+                "name": "SOXL",
+                "currency": "USD",
+                "quantity": 10.0,
+                "avg_price": 50.0,
+                "last_price": 55.5,
+                "market_value": 555.0,
+                "pnl": 55.0,
+                "pnl_rate": 0.11,
+            }
+        ]
+    )
+    res = make_result()
+    lev = {h: [-0.5, 0.1, 0.8] for h in HORIZONS}
+    return held, {w: bpos.apply_distribution(555.0, res.forward_summary, lev) for w in (120, 250)}
+
+
+def make_report_with_positions() -> pipeline.Report:
+    report = make_report()
+    report.positions, report.position_dist = make_positions()
+    return report
+
+
+def test_position_section_absent_without_positions_in_every_format():
+    report = make_report()
+    assert "내 포지션" not in pipeline.render_markdown(report)
+    assert "내 포지션" not in pipeline.render_html(report)
+    assert "내 포지션" not in pipeline.render_telegram(report)
+
+
+def test_markdown_position_section_amounts_and_disclaimer():
+    md = pipeline.render_markdown(make_report_with_positions())
+    assert md.index("## 창별 결과") < md.index("## 내 포지션") < md.index("## 이번 주 예정 이벤트")
+    sec = md[md.index("## 내 포지션") : md.index("## 이번 주 예정 이벤트")]
+    assert "| SOXL | 10 | $50.00 | $555.00 | $55.00 | +11.0% |" in sec
+    assert "**120거래일 창** — 12개월 후 평가액" in sec and "**250거래일 창**" in sec
+    # 3배 줄: 중앙값 +10% → $610.50, 하위10%(np.percentile 선형보간) / SOX 줄: 중앙값 +25% → $693.75
+    assert "| 3배 레버리지 기준 | $610.50 (+10.0%) |" in sec
+    assert "| SOX 기준 | $693.75 (+25.0%) |" in sec
+    assert "예측이 아니다" in sec
+
+
+def test_html_and_telegram_position_sections():
+    report = make_report_with_positions()
+    html = pipeline.render_html(report)
+    assert "<h2" in html and "내 포지션" in html and "$610.50" in html
+    text = pipeline.render_telegram(report)
+    assert "내 포지션 (SOXL, 11-05 기준)" in text
+    assert "10주 · 평단 $50.00 · 평가액 $555.00 · 손익 +11.0%" in text
+    assert "[120거래일 창] 3배 레버리지로 따라갔다면 12개월 후 평가액" in text
+    assert "중앙값 $610.50 (+10.0%)" in text
+    assert "예측이 아니다" in text
+    assert "|" not in text and len(text) <= pipeline.TELEGRAM_MAX_CHARS
+
+
+def test_position_currency_follows_toss_not_assumed_usd():
+    report = make_report_with_positions()
+    report.positions = report.positions.assign(currency="KRW")
+    md = pipeline.render_markdown(report)
+    assert "555원" in md and "$" not in md[md.index("## 내 포지션") : md.index("## 이번 주")]
+
+
+def test_refresh_data_marks_positions_unset_without_credentials(monkeypatch):
+    for target, name in (
+        (pipeline._prices, "ingest_prices"),
+        (pipeline._fred, "ingest_fred"),
+        (pipeline._semi, "ingest_semi"),
+        (pipeline._events, "ingest_events"),
+    ):
+        monkeypatch.setattr(target, name, lambda *a, **k: 1)
+    out = pipeline.refresh_data(today=dt.date(2026, 11, 5))
+    assert "positions" not in out and out.skipped == {"positions": "미설정"}
+    assert not out.errors
+
+
+def test_refresh_data_positions_failure_is_recorded_and_others_continue(monkeypatch):
+    for target, name in (
+        (pipeline._prices, "ingest_prices"),
+        (pipeline._fred, "ingest_fred"),
+        (pipeline._semi, "ingest_semi"),
+        (pipeline._events, "ingest_events"),
+    ):
+        monkeypatch.setattr(target, name, lambda *a, **k: 1)
+
+    def boom(_engine):
+        raise RuntimeError("ip-not-allowed")
+
+    monkeypatch.setattr(pipeline, "_refresh_positions", boom)
+    out = pipeline.refresh_data(today=dt.date(2026, 11, 5))
+    assert out["positions"] == -1 and "ip-not-allowed" in out.errors["positions"]
+    assert out["events"] == 1
+
+
+def test_position_inputs_skipped_when_just_refreshed_with_no_holdings(monkeypatch):
+    refresh = pipeline.RefreshResult()
+    refresh["positions"] = 0
+    monkeypatch.setattr(
+        pipeline._positions, "latest_positions", lambda *_a, **_k: pytest.fail("읽으면 안 된다")
+    )
+    assert pipeline._position_inputs(None, [], refresh) == (None, {})
+
+
+def test_position_inputs_failure_omits_section(monkeypatch):
+    def boom(*_a, **_k):
+        raise RuntimeError("db")
+
+    monkeypatch.setattr(pipeline._positions, "latest_positions", boom)
+    assert pipeline._position_inputs(None, [], None) == (None, {})
 
 
 # --- DB (docker compose up -d db)

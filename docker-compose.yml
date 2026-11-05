@@ -30,6 +30,8 @@ services:
         condition: service_healthy
 
   web:
+    env_file:
+      - .env
     build: .
     command: streamlit run stocker/web/app.py --server.port 8501 --server.address 0.0.0.0
     environment:

@@ -96,3 +96,34 @@ def load_soxl() -> pd.Series | None:
         return None
     s = df["adj_close"].dropna()
     return None if s.empty else s
+
+
+@st.cache_data(ttl=300)
+def load_positions() -> pd.DataFrame | None:
+    """DB의 최신 스냅샷 중 보유 SOXL 행. 스냅샷이 없거나 테이블이 없으면 None."""
+    from stocker.broker.positions import latest_positions, soxl_positions
+
+    try:
+        return soxl_positions(latest_positions(engine=_engine()))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def broker_configured() -> bool:
+    """TOSS_CLIENT_ID/SECRET이 이 프로세스에서 읽히는가 (API는 부르지 않는다)."""
+    from stocker.broker import from_env
+
+    return from_env() is not None
+
+
+def refresh_positions() -> int:
+    """토스에서 지금 보유 종목을 받아 스냅샷에 저장 (토큰은 DB 캐시 공유). 저장한 행 수."""
+    from stocker.broker import from_env
+    from stocker.broker.positions import snapshot_positions
+
+    client = from_env(_engine())
+    if client is None:
+        raise RuntimeError("TOSS_CLIENT_ID/SECRET이 없다")
+    n = len(snapshot_positions(client, engine=_engine()))
+    load_positions.clear()
+    return n

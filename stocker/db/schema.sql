@@ -62,3 +62,30 @@ CREATE TABLE IF NOT EXISTS report_runs (
     report_md   text,
     PRIMARY KEY (run_date, "window")
 );
+
+-- 토스 오픈 API 토큰 공유 캐시. 토큰은 클라이언트당 1개만 유효(재발급하면 이전 토큰 무효)하므로
+-- scheduler 컨테이너와 대시보드가 같은 행을 읽고 쓴다.
+CREATE TABLE IF NOT EXISTS broker_tokens (
+    client_id    text        PRIMARY KEY,
+    access_token text        NOT NULL,
+    expires_at   timestamptz NOT NULL,
+    issued_at    timestamptz NOT NULL DEFAULT now()
+);
+
+-- 일별 보유 종목 스냅샷(복기용). 같은 날 다시 받으면 덮어쓴다.
+CREATE TABLE IF NOT EXISTS positions_snapshot (
+    snapshot_date  date             NOT NULL,
+    symbol         text             NOT NULL,
+    name           text,
+    market_country text,
+    currency       text,
+    quantity       double precision,
+    avg_price      double precision,
+    last_price     double precision,
+    market_value   double precision,
+    pnl            double precision,
+    pnl_rate       double precision,
+    source         text             NOT NULL DEFAULT 'toss',
+    fetched_at     timestamptz      NOT NULL DEFAULT now(),
+    PRIMARY KEY (snapshot_date, symbol)
+);

@@ -52,6 +52,28 @@
 {% endif %}
 {% endfor %}
 
+{% if position %}
+<h2 style="font-size:17px;margin:24px 0 8px">내 포지션</h2>
+<p style="font-size:13px;color:#555;margin:0 0 8px">토스증권 보유분 (스냅샷 {{ position.snapshot_date }}, 읽기 전용 조회)</p>
+<table style="border-collapse:collapse;font-size:13px">
+<tr>{{ th("종목") }}{{ th("수량") }}{{ th("평단") }}{{ th("평가액") }}{{ th("손익") }}{{ th("손익률") }}</tr>
+{% for h in position.holdings %}
+<tr>{{ td(h.symbol) }}{{ td(h.quantity) }}{{ td(h.avg_price) }}{{ td(h.value) }}{{ td(h.pnl) }}{{ td(h.pnl_rate) }}</tr>
+{% endfor %}
+</table>
+<p style="font-size:13px;margin:12px 0 4px">닮은 국면의 이후 수익을 내 평가액({{ position.total_value }})에 적용하면</p>
+{% for b in position.blocks %}
+<p style="font-size:13px;margin:10px 0 4px"><strong>{{ b.window }}거래일 창</strong> — {{ b.horizon_label }} 평가액</p>
+<table style="border-collapse:collapse;font-size:13px">
+<tr>{{ th("기준") }}{{ th("중앙값") }}{{ th("하위 10%") }}{{ th("상위 10%") }}{{ th("표본 n") }}</tr>
+{% for r in b.rows %}
+<tr>{{ td(r.basis) }}{{ td(r.median) }}{{ td(r.p10) }}{{ td(r.p90) }}{{ td(r.n) }}</tr>
+{% endfor %}
+</table>
+{% endfor %}
+<p style="font-size:12px;color:#777;margin:8px 0 0">'3배 레버리지 기준'은 닮은 국면마다 SOX 경로를 일별 3배로 따라간 값이라 변동성 손실(레버리지 감가)이 들어 있다. 'SOX 기준'은 같은 금액이 지수만큼만 움직였다면의 참고 줄이다. {{ position.disclaimer }}</p>
+{% endif %}
+
 <h2 style="font-size:17px;margin:24px 0 8px">이번 주 예정 이벤트</h2>
 {% if events %}
 <ul style="font-size:13px;margin:0;padding-left:20px">

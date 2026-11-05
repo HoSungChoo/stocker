@@ -35,6 +35,14 @@ make web                     # 로컬: uv run streamlit run stocker/web/app.py
 docker compose up web        # docker (db 자동 기동)
 ```
 
+내 포지션 (토스증권 오픈 API, 읽기 전용 · 선택):
+
+```bash
+# .env에 TOSS_CLIENT_ID / TOSS_CLIENT_SECRET 입력 (WTS 설정 → Open API, 허용 IP 등록)
+uv run python -m stocker.broker check      # 계좌·보유 종목·매수가능금액 확인
+uv run python -m stocker.broker snapshot   # 보유 종목을 DB에 저장 (보고서·대시보드가 이 값을 쓴다)
+```
+
 ## DB 초기화가 필요한 경우
 
 스키마의 hypertable 조각 간격이 바뀌었으면(2026-11-05 이전 볼륨) 볼륨을 지우고 다시 적재한다. 모든 데이터는 재다운로드 가능하다.
