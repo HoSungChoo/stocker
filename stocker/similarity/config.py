@@ -48,7 +48,7 @@ class SimilarityConfig:
     cycle_lag_days: int = 45
 
     # --- Phase 6 (PHASE6_CONTRACT 23·24절) ---
-    mode: str = "shape"  # "shape"(모양 우선, 기존) | "regime"(환경 우선, regime.py)
+    mode: str = "regime"  # 기본 "regime"(환경 우선, 호성님 결정 2026-11-06) | "shape"(모양 우선)
     # 적합 기준(23절). 기준값은 계약에 고정되어 있다. 백테스트 결과를 보고 바꾸지 않는다.
     fit_drawdown_pp: float = 8.0  # 낙폭 차이 ≤ 8%p
     fit_dd_days_ratio: float = 0.40  # 고점 이후 거래일 수 차이 ≤ 40% (긴 쪽 기준)

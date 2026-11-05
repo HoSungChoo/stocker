@@ -236,8 +236,13 @@ def test_score_mode_dispatch():
         close.index[-1], close, macro, cycle, events, SimilarityConfig(window=WINDOW), "regime"
     )
     assert r1.mode == "regime"
-    r2 = score_mode(close.index[-1], close, macro, cycle, events, SimilarityConfig(window=WINDOW))
+    r2 = score_mode(
+        close.index[-1], close, macro, cycle, events, SimilarityConfig(window=WINDOW), "shape"
+    )
     assert r2.mode == "shape"
+    # 기본값은 환경 우선 (2026-11-06 결정)
+    r3 = score_mode(close.index[-1], close, macro, cycle, events, SimilarityConfig(window=WINDOW))
+    assert r3.mode == "regime"
     # 모양 우선에는 환경용 시리즈(CPI·M2·WALCL)가 걸러져 들어간다 → 기본 macro_series만
     assert set(r2.weights_used) == {"price_shape", "macro", "semi_cycle"}
     with pytest.raises(ValueError):
