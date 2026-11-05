@@ -1,0 +1,6 @@
+start,end,months,max_n,signals_at_start,months_to_major_top,dd_after_peak,verdict
+1999-07-31,1999-07-31,1,4,bottom_fed_cut+bubble_yield_spread+bubble_ipo+heat_cape,7.3,-0.733907085396187,정점 2년 내
+1999-09-30,1999-09-30,1,4,bubble_yield_spread+bubble_ipo+heat_cape+heat_sox_1y,5.3,-0.733907085396187,정점 2년 내
+1999-12-31,1999-12-31,1,5,bottom_fed_cut+bubble_yield_spread+bubble_ipo+heat_cape+heat_sox_1y,2.3,-0.733907085396187,정점 2년 내
+2000-02-29,2000-08-31,7,5,bubble_inversion+bubble_yield_spread+bubble_ipo+heat_cape+heat_sox_1y,0.3,-0.733907085396187,정점 2년 내
+2001-03-31,2001-03-31,1,4,bottom_10y_turn+bottom_fed_cut+heat_cape+crisis_hy_alt,1.7,-0.696863286613616,정점 2년 내
