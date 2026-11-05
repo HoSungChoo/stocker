@@ -92,7 +92,8 @@ def test_health(client):
 
 
 def test_similarity_schema(client):
-    r = client.get("/api/similarity")
+    # 모양 우선 모드의 스키마 검사(기본 모드는 환경 우선이므로 명시)
+    r = client.get("/api/similarity?mode=shape")
     assert r.status_code == 200
     b = r.json()
     assert b["as_of"] == LAST.strftime("%Y-%m-%d")
@@ -155,7 +156,7 @@ def test_similarity_baseline_present_in_regime_fallback(client):
 
 def test_similarity_query_params_and_weights(client):
     r = client.get(
-        "/api/similarity?window=60&top_k=3&w_price=1&w_macro=1&w_cycle=0&as_of=2023-06-30"
+        "/api/similarity?mode=shape&window=60&top_k=3&w_price=1&w_macro=1&w_cycle=0&as_of=2023-06-30"
     )
     assert r.status_code == 200
     b = r.json()
@@ -177,11 +178,11 @@ def test_result_cache_hits(client, monkeypatch):
         return real(*a, **k)
 
     monkeypatch.setattr(api_data, "score", counted)
-    client.get("/api/similarity?top_k=4")
-    client.get("/api/similarity?top_k=4")
-    client.get("/api/overlay?top_k=4")  # 같은 쿼리 키 → 같은 결과 재사용
+    client.get("/api/similarity?mode=shape&top_k=4")
+    client.get("/api/similarity?mode=shape&top_k=4")
+    client.get("/api/overlay?mode=shape&top_k=4")  # 같은 쿼리 키 → 같은 결과 재사용
     assert calls["n"] == 1
-    client.get("/api/similarity?top_k=2")
+    client.get("/api/similarity?mode=shape&top_k=2")
     assert calls["n"] == 2
 
 

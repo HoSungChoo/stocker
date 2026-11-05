@@ -86,12 +86,18 @@ def similarity(q: CommonQuery) -> SimilarityResult:
 
     def compute():
         # mode 쿼리가 없으면 엔진 기본값(config.mode)을 따른다. 기본은 환경 우선(2026-11-06).
-        if q.mode or q.config().mode == "regime":
-            res = _run_with_mode(q)
-            if res is not None:
-                return _with_baseline(res, q)
+        # 두 모드 모두 캐시된 입력(inputs)으로 계산해 DB를 다시 읽지 않는다.
+        mode = q.mode or q.config().mode
         close, macro, cycle = inputs()
-        return _with_baseline(score(resolve_as_of(q), close, macro, cycle, q.config()), q)
+        if mode == "regime":
+            from stocker.similarity.loaders import score_mode
+
+            res = score_mode(
+                resolve_as_of(q), close, macro, cycle, regime_events(), q.config(), "regime"
+            )
+        else:
+            res = score(resolve_as_of(q), close, macro, cycle, q.config())
+        return _with_baseline(res, q)
 
     return result_cache.get_or_set(make_key("similarity", q.key()), compute)
 
@@ -104,6 +110,17 @@ def _with_baseline(res: SimilarityResult, q: CommonQuery) -> SimilarityResult:
             close.loc[: res.as_of], q.config().horizons
         )
     return res
+
+
+def regime_events() -> pd.DataFrame | None:
+    """환경 우선 모드가 쓰는 정책·전쟁·충격 이벤트(캐시). 없으면 None(이벤트 없음으로 처리)."""
+    from stocker.similarity.regime import REGIME_EVENT_KINDS
+
+    def load():
+        df = events(None, None, list(REGIME_EVENT_KINDS))
+        return None if df is None or len(df) == 0 else df
+
+    return inputs_cache.get_or_set(make_key("regime_events"), load)
 
 
 def _run_with_mode(q: CommonQuery) -> SimilarityResult | None:
