@@ -118,6 +118,9 @@ def simulate_leveraged(
     financing_rate: pd.Series | float = 0.0,  # 연율. Series면 날짜 정렬 후 ffill
     financing_spread: float = 0.0,   # 연율. 금융비용에 더하는 스프레드
     start_value: float = 100.0,
+    rate_scale: Literal["auto","percent","decimal"] = "auto",
+    # FRED DFF는 percent 단위(5.33 = 5.33%). CLI는 항상 "percent"를 넘긴다.
+    # "auto"는 1.0 초과 값을 percent로 간주하므로 저금리 구간(2021)에서 오판할 수 있다.
 ) -> pd.Series                       # NAV 경로
     # 일일: nav_t = nav_{t-1} * (1 + L*r_t - (L-1)*(rf_t+spread)/252 - ER/252)
     # 거래일 수 252 고정. nav가 0 이하로 가면 0에서 멈춘다.
@@ -128,11 +131,14 @@ def calibrate(
     leverage: float = 3.0,
     expense_ratio: float = 0.0075,
     financing_rate: pd.Series | float = 0.0,
-) -> CalibrationResult               # dataclass: financing_spread, annual_tracking_error, daily_corr, n_days
+    rate_scale: Literal["auto","percent","decimal"] = "auto",
+) -> CalibrationResult
+    # dataclass: financing_spread, annual_tracking_error, daily_corr, n_days,
+    #            mean_annual_drift (연율화된 로그수익률 차이 평균, sim - actual)
     # financing_spread를 1차원 최적화해 로그 NAV 오차 최소화
 
 def forward_returns(nav: pd.Series, horizons=(21, 63, 126, 252)) -> pd.DataFrame
-    # 각 날짜 기준 h일 후 수익률. Phase 1에서 재사용.
+    # 각 날짜 기준 h일 후 수익률. 컬럼명 `fwd_{h}`. Phase 1에서 재사용.
 ```
 
 ### CLI
@@ -142,6 +148,9 @@ python -m stocker.ingest prices [--symbols ^SOX,SOXX] [--start 1990-01-01]
 python -m stocker.ingest fred [--series DFF,DGS10] [--start 1990-01-01]
 python -m stocker.sim --index SOXX --leverage 3 --start 2022-01-01 [--end ...] [--compare SOXL] [--rf DFF]
     # DB에서 읽어 시뮬. --compare가 있으면 calibrate 결과와 추적오차를 표로 출력.
+    # --rf DFF 권장. rf=0이면 상수 스프레드가 0~5% 금리 변동을 못 따라가 연 +1.2% 드리프트가 남는다.
+    # 검증값(SOXX→SOXL 2021–2025, DFF 사용): 스프레드 +1.36%, 연 추적오차 4.75%, 일일 상관 0.999, 드리프트 ≈ 0.
+    # SOXX 조정종가를 쓰면 스프레드에 SOXX 배당·보수(0.35%)가 섞인다. 허용 범위.
     # DB가 없으면 --source yfinance 로 직접 받아 실행 가능해야 한다.
 ```
 
