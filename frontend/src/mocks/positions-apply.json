@@ -1,0 +1,44 @@
+{
+ "120": {
+  "position_value": 5182.32,
+  "currency": "USD",
+  "n": 5,
+  "rows": [
+   {
+    "basis": "sox",
+    "horizon": 252,
+    "median": 0.25,
+    "p10": -0.247,
+    "p90": 0.525
+   },
+   {
+    "basis": "lev3",
+    "horizon": 252,
+    "median": 0.454,
+    "p10": -0.778,
+    "p90": 1.229
+   }
+  ]
+ },
+ "250": {
+  "position_value": 5182.32,
+  "currency": "USD",
+  "n": 5,
+  "rows": [
+   {
+    "basis": "sox",
+    "horizon": 252,
+    "median": -0.109,
+    "p10": -0.277,
+    "p90": 0.25
+   },
+   {
+    "basis": "lev3",
+    "horizon": 252,
+    "median": -0.545,
+    "p10": -0.796,
+    "p90": 0.281
+   }
+  ]
+ }
+}

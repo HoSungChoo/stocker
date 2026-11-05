@@ -1,0 +1,26 @@
+[
+ {
+  "date": "2026-11-06",
+  "kind": "jobs",
+  "title": "고용보고서(Employment Situation) 발표",
+  "symbol": null,
+  "scheduled": true,
+  "confirmed": true
+ },
+ {
+  "date": "2026-11-10",
+  "kind": "cpi",
+  "title": "소비자물가지수(CPI) 발표",
+  "symbol": null,
+  "scheduled": true,
+  "confirmed": true
+ },
+ {
+  "date": "2026-11-17",
+  "kind": "earnings",
+  "title": "NVDA 실적 발표",
+  "symbol": "NVDA",
+  "scheduled": true,
+  "confirmed": false
+ }
+]

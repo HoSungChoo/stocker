@@ -89,3 +89,12 @@ CREATE TABLE IF NOT EXISTS positions_snapshot (
     fetched_at     timestamptz      NOT NULL DEFAULT now(),
     PRIMARY KEY (snapshot_date, symbol)
 );
+
+-- 이벤트 전후 ^SOX 수익률(사실 나열용, 인과 주장 아님). 이벤트가 지워지면 같이 지운다.
+CREATE TABLE IF NOT EXISTS event_impact (
+    event_id    bigint           PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+    ret5        double precision,
+    ret_1m      double precision,
+    ret_3m      double precision,
+    computed_at timestamptz      NOT NULL DEFAULT now()
+);

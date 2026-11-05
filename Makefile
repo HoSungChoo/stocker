@@ -1,4 +1,4 @@
-.PHONY: db-up db-down init test lint fmt web report schedule
+.PHONY: db-up db-down init test lint fmt web report schedule ui ui-dev
 
 db-up:
 	docker compose up -d --wait db
@@ -30,3 +30,9 @@ fmt:
 
 seed: ## WSTS 시드 CSV 생성 (git 미추적)
 	uv run --with openpyxl python scripts/parse_wsts.py
+
+ui: ## React 프론트 + nginx (http://localhost:3000, api 서비스 필요)
+	docker compose up -d --build ui
+
+ui-dev: ## React 개발 서버 (http://localhost:5173, /api → localhost:8000)
+	cd frontend && npm run dev

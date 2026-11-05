@@ -33,6 +33,8 @@ docker compose up -d scheduler   # 매일 화~토 07:30 KST (미국 장 마감 �
 ```bash
 make web                     # 로컬: uv run streamlit run stocker/web/app.py
 docker compose up web        # docker (db 자동 기동)
+make ui                      # React 화면 http://localhost:3000 (docker, api 서비스 필요) · make ui-dev 는 개발 서버 :5173
+VITE_USE_MOCK=true make ui-dev  # API 없이 mock 데이터로 React 화면 확인
 ```
 
 내 포지션 (토스증권 오픈 API, 읽기 전용 · 선택):

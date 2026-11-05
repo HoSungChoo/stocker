@@ -59,6 +59,11 @@ class SimilarityResult:
     forward_summary: pd.DataFrame  # index=horizon, columns=median,p10,p90,n_up,n_down,n
     weights_used: dict[str, float] = field(default_factory=dict)  # 재정규화된 가중치 (계약 외 추가)
     requested_as_of: pd.Timestamp | None = None  # 호출자가 넘긴 날짜 (계약 외 추가)
+    # 후보 전체의 점수표 (계약 외 추가, explain용). index=end_date,
+    # columns=price_shape,macro,semi_cycle(없는 레이어는 없음),combined,euclid_rank,dtw_rank
+    # euclid_rank: 창 벡터 유클리드 거리의 순위(1이 가장 가까움, 전 후보).
+    # dtw_rank: DTW 거리의 순위(유클리드 사전 필터 안에서만; 밖이면 NaN).
+    candidates: pd.DataFrame | None = None
 
 
 def _clean_close(close: pd.Series) -> pd.Series:
@@ -96,8 +101,10 @@ def _truncate(series: dict[str, pd.Series] | None, as_of: pd.Timestamp) -> dict[
 
 def _price_layer(
     query: pd.Series, cands: pd.DataFrame, window: int, cfg: SimilarityConfig
-) -> np.ndarray:
-    """price_shape 점수 (후보 수,). 1이 가장 닮음.
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """price_shape 점수 (후보 수,). 1이 가장 닮음. 반환: (점수, 유클리드 순위, DTW 순위).
+
+    순위는 1부터(1이 가장 가까움). DTW 순위는 사전 필터에 든 후보만 있고 나머지는 NaN.
 
     1) 창 벡터 유클리드 거리로 전 후보 정렬 → 상위 `prefilter`개 선별
     2) 선별된 후보는 DTW 거리와 낙폭 특징 절대차를 (1-w, w)로 가중 합산해 재정렬
@@ -129,7 +136,13 @@ def _price_layer(
     rank = np.empty(n, dtype="float64")
     final_order = np.concatenate([top_sorted, rest])
     rank[final_order] = np.arange(n, dtype="float64")
-    return 1.0 - (rank / (n - 1.0) if n > 1 else rank)
+    score = 1.0 - (rank / (n - 1.0) if n > 1 else rank)
+
+    eucl_rank = np.empty(n, dtype="float64")
+    eucl_rank[order] = np.arange(1, n + 1, dtype="float64")
+    dtw_rank = np.full(n, np.nan)
+    dtw_rank[top[np.argsort(dtw, kind="stable")]] = np.arange(1, len(top) + 1, dtype="float64")
+    return score, eucl_rank, dtw_rank
 
 
 def _layer_scores_from_features(
@@ -254,7 +267,7 @@ def score(
         raise ValueError("min_gap_days를 만족하는 후보 창이 없다")
 
     layer_scores: dict[str, np.ndarray] = {}
-    layer_scores["price_shape"] = _price_layer(query, cands, cfg.window, cfg)
+    layer_scores["price_shape"], eucl_rank, dtw_rank = _price_layer(query, cands, cfg.window, cfg)
 
     # --- macro ---
     layers_missing: list[str] = []
@@ -314,6 +327,10 @@ def score(
         )
     chosen_dates = pd.DatetimeIndex([m.end_date for m in matches])
     summary = summarize_forward(fwd_all.loc[chosen_dates], cfg.horizons)
+    cand_table = pd.DataFrame(
+        {**layer_scores, "combined": combined, "euclid_rank": eucl_rank, "dtw_rank": dtw_rank},
+        index=cands.index,
+    )
 
     return SimilarityResult(
         as_of=anchor,
@@ -324,4 +341,5 @@ def score(
         forward_summary=summary,
         weights_used=weights_used,
         requested_as_of=requested,
+        candidates=cand_table,
     )

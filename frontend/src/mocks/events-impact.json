@@ -1,0 +1,102 @@
+[
+ {
+  "id": 12,
+  "date": "2001-09-11",
+  "kind": "war",
+  "title": "9·11 테러 (미 증시 9/17 재개장)",
+  "ret5": -0.323,
+  "ret_1m": 0.05,
+  "ret_3m": 0.1,
+  "source": "https://example.com/mock-source/12"
+ },
+ {
+  "id": 31,
+  "date": "2020-03-11",
+  "kind": "policy",
+  "title": "WHO 코로나19 팬데믹 선언",
+  "ret5": -0.281,
+  "ret_1m": -0.12,
+  "ret_3m": 0.31,
+  "source": "https://example.com/mock-source/31"
+ },
+ {
+  "id": 3,
+  "date": "1996-11-05",
+  "kind": "election",
+  "title": "미국 대선 (클린턴 재선)",
+  "ret5": 0.156,
+  "ret_1m": 0.04,
+  "ret_3m": 0.09,
+  "source": "https://example.com/mock-source/3"
+ },
+ {
+  "id": 20,
+  "date": "2008-11-04",
+  "kind": "election",
+  "title": "미국 대선 (오바마 당선)",
+  "ret5": -0.09,
+  "ret_1m": -0.07,
+  "ret_3m": -0.02,
+  "source": "https://example.com/mock-source/20"
+ },
+ {
+  "id": 27,
+  "date": "2011-03-11",
+  "kind": "policy",
+  "title": "동일본 대지진 (반도체·소재 공급 차질)",
+  "ret5": -0.088,
+  "ret_1m": 0.03,
+  "ret_3m": 0.01,
+  "source": "https://example.com/mock-source/27"
+ },
+ {
+  "id": 11,
+  "date": "2000-11-07",
+  "kind": "election",
+  "title": "미국 대선 (부시-고어, 개표 분쟁)",
+  "ret5": -0.072,
+  "ret_1m": -0.1,
+  "ret_3m": -0.13,
+  "source": "https://example.com/mock-source/11"
+ },
+ {
+  "id": 38,
+  "date": "2025-01-27",
+  "kind": "policy",
+  "title": "딥시크(DeepSeek) 충격: 반도체·AI 주식 급락",
+  "ret5": -0.072,
+  "ret_1m": 0.02,
+  "ret_3m": -0.15,
+  "source": "https://example.com/mock-source/38"
+ },
+ {
+  "id": 5,
+  "date": "1997-07-02",
+  "kind": "policy",
+  "title": "아시아 금융위기 시작 (태국 바트 변동환율제 전환)",
+  "ret5": 0.064,
+  "ret_1m": -0.08,
+  "ret_3m": -0.12,
+  "source": "https://example.com/mock-source/5"
+ },
+ {
+  "id": 34,
+  "date": "2022-10-07",
+  "kind": "policy",
+  "title": "미국 대중 첨단 반도체·장비 수출규제 (BIS 10월 규정)",
+  "ret5": -0.063,
+  "ret_1m": 0.066,
+  "ret_3m": 0.146,
+  "source": "https://example.com/mock-source/34"
+ },
+ {
+  "id": 39,
+  "date": "2025-04-02",
+  "kind": "policy",
+  "title": "트럼프 '해방의 날' 상호관세 발표",
+  "ret5": -0.062,
+  "ret_1m": 0.11,
+  "ret_3m": 0.35,
+  "source": "https://example.com/mock-source/39"
+ }
+]

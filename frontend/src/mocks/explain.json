@@ -1,0 +1,502 @@
+{
+ "2000-08-08": {
+  "match": {
+   "start": "2000-02-17",
+   "end": "2000-08-08",
+   "combined": 0.95,
+   "scores": {
+    "price_shape": 1,
+    "macro": 0.86,
+    "semi_cycle": 0.96
+   }
+  },
+  "price": {
+   "dtw_rank": 1,
+   "euclid_rank": 3,
+   "drawdown": {
+    "then": -0.287,
+    "now": -0.298
+   },
+   "drawdown_days": {
+    "then": 151,
+    "now": 135
+   }
+  },
+  "macro": [
+   {
+    "series": "DFF",
+    "label": "기준금리",
+    "unit": "%",
+    "then": 6.44,
+    "now": 3.88,
+    "z_then": 1.2,
+    "z_now": 0.4
+   },
+   {
+    "series": "DGS10",
+    "label": "10년물",
+    "unit": "%",
+    "then": 5.93,
+    "now": 4.95,
+    "z_then": 1.4,
+    "z_now": 0.9
+   },
+   {
+    "series": "T10Y2Y",
+    "label": "장단기 스프레드",
+    "unit": "%p",
+    "then": -0.23,
+    "now": 0.32,
+    "z_then": -0.9,
+    "z_now": -0.1
+   },
+   {
+    "series": "DCOILWTICO",
+    "label": "WTI 유가",
+    "unit": "$",
+    "then": 29,
+    "now": 100,
+    "z_then": -0.4,
+    "z_now": 1.6
+   },
+   {
+    "series": "DTWEXBGS",
+    "label": "달러지수",
+    "unit": "",
+    "then": null,
+    "now": 121.7,
+    "z_then": null,
+    "z_now": 1.1
+   },
+   {
+    "series": "VIXCLS",
+    "label": "VIX",
+    "unit": "",
+    "then": 18.8,
+    "now": 20.8,
+    "z_then": -0.1,
+    "z_now": 0.2
+   }
+  ],
+  "cycle": [
+   {
+    "metric": "wsts_sales_yoy",
+    "label": "반도체 매출 YoY",
+    "then": 0.407,
+    "now": 1.443
+   },
+   {
+    "metric": "wsts_yoy_chg6m",
+    "label": "YoY 6개월 변화",
+    "then": 0.1,
+    "now": 0.3
+   }
+  ],
+  "forward": {
+   "21": 0.151,
+   "63": -0.216,
+   "126": -0.331,
+   "252": -0.385
+  }
+ },
+ "2022-04-25": {
+  "match": {
+   "start": "2021-11-02",
+   "end": "2022-04-25",
+   "combined": 0.93,
+   "scores": {
+    "price_shape": 1,
+    "macro": 0.94,
+    "semi_cycle": 0.75
+   }
+  },
+  "price": {
+   "dtw_rank": 1,
+   "euclid_rank": 2,
+   "drawdown": {
+    "then": -0.247,
+    "now": -0.298
+   },
+   "drawdown_days": {
+    "then": 119,
+    "now": 135
+   }
+  },
+  "macro": [
+   {
+    "series": "DFF",
+    "label": "기준금리",
+    "unit": "%",
+    "then": 0.33,
+    "now": 3.88,
+    "z_then": -1.1,
+    "z_now": 0.4
+   },
+   {
+    "series": "DGS10",
+    "label": "10년물",
+    "unit": "%",
+    "then": 2.81,
+    "now": 4.95,
+    "z_then": -0.2,
+    "z_now": 0.9
+   },
+   {
+    "series": "T10Y2Y",
+    "label": "장단기 스프레드",
+    "unit": "%p",
+    "then": 0.18,
+    "now": 0.32,
+    "z_then": -0.3,
+    "z_now": -0.1
+   },
+   {
+    "series": "DCOILWTICO",
+    "label": "WTI 유가",
+    "unit": "$",
+    "then": 100,
+    "now": 100,
+    "z_then": 1.6,
+    "z_now": 1.6
+   },
+   {
+    "series": "DTWEXBGS",
+    "label": "달러지수",
+    "unit": "",
+    "then": 118.6,
+    "now": 121.7,
+    "z_then": 0.9,
+    "z_now": 1.1
+   },
+   {
+    "series": "VIXCLS",
+    "label": "VIX",
+    "unit": "",
+    "then": 27,
+    "now": 20.8,
+    "z_then": 0.7,
+    "z_now": 0.2
+   }
+  ],
+  "cycle": [
+   {
+    "metric": "wsts_sales_yoy",
+    "label": "반도체 매출 YoY",
+    "then": 0.262,
+    "now": 1.443
+   },
+   {
+    "metric": "wsts_yoy_chg6m",
+    "label": "YoY 6개월 변화",
+    "then": 0.15,
+    "now": 0.3
+   }
+  ],
+  "forward": {
+   "21": -0.071,
+   "63": -0.087,
+   "126": -0.227,
+   "252": -0.039
+  }
+ },
+ "2025-03-20": {
+  "match": {
+   "start": "2024-09-26",
+   "end": "2025-03-20",
+   "combined": 0.92,
+   "scores": {
+    "price_shape": 0.98,
+    "macro": 0.99,
+    "semi_cycle": 0.66
+   }
+  },
+  "price": {
+   "dtw_rank": 2,
+   "euclid_rank": 1,
+   "drawdown": {
+    "then": -0.221,
+    "now": -0.298
+   },
+   "drawdown_days": {
+    "then": 253,
+    "now": 135
+   }
+  },
+  "macro": [
+   {
+    "series": "DFF",
+    "label": "기준금리",
+    "unit": "%",
+    "then": 4.33,
+    "now": 3.88,
+    "z_then": 0.7,
+    "z_now": 0.4
+   },
+   {
+    "series": "DGS10",
+    "label": "10년물",
+    "unit": "%",
+    "then": 4.24,
+    "now": 4.95,
+    "z_then": 0.6,
+    "z_now": 0.9
+   },
+   {
+    "series": "T10Y2Y",
+    "label": "장단기 스프레드",
+    "unit": "%p",
+    "then": 0.29,
+    "now": 0.32,
+    "z_then": 0,
+    "z_now": -0.1
+   },
+   {
+    "series": "DCOILWTICO",
+    "label": "WTI 유가",
+    "unit": "$",
+    "then": 69,
+    "now": 100,
+    "z_then": 0,
+    "z_now": 1.6
+   },
+   {
+    "series": "DTWEXBGS",
+    "label": "달러지수",
+    "unit": "",
+    "then": 126,
+    "now": 121.7,
+    "z_then": 1.4,
+    "z_now": 1.1
+   },
+   {
+    "series": "VIXCLS",
+    "label": "VIX",
+    "unit": "",
+    "then": 19.8,
+    "now": 20.8,
+    "z_then": 0.1,
+    "z_now": 0.2
+   }
+  ],
+  "cycle": [
+   {
+    "metric": "wsts_sales_yoy",
+    "label": "반도체 매출 YoY",
+    "then": 0.178,
+    "now": 1.443
+   },
+   {
+    "metric": "wsts_yoy_chg6m",
+    "label": "YoY 6개월 변화",
+    "then": 0.12,
+    "now": 0.3
+   }
+  ],
+  "forward": {
+   "21": -0.185,
+   "63": 0.133,
+   "126": 0.354,
+   "252": 0.689
+  }
+ },
+ "2018-10-22": {
+  "match": {
+   "start": "2018-05-03",
+   "end": "2018-10-22",
+   "combined": 0.92,
+   "scores": {
+    "price_shape": 1,
+    "macro": 0.98,
+    "semi_cycle": 0.62
+   }
+  },
+  "price": {
+   "dtw_rank": 3,
+   "euclid_rank": 4,
+   "drawdown": {
+    "then": -0.19,
+    "now": -0.298
+   },
+   "drawdown_days": {
+    "then": 98,
+    "now": 135
+   }
+  },
+  "macro": [
+   {
+    "series": "DFF",
+    "label": "기준금리",
+    "unit": "%",
+    "then": 2.2,
+    "now": 3.88,
+    "z_then": 0.1,
+    "z_now": 0.4
+   },
+   {
+    "series": "DGS10",
+    "label": "10년물",
+    "unit": "%",
+    "then": 3.2,
+    "now": 4.95,
+    "z_then": 0.2,
+    "z_now": 0.9
+   },
+   {
+    "series": "T10Y2Y",
+    "label": "장단기 스프레드",
+    "unit": "%p",
+    "then": 0.24,
+    "now": 0.32,
+    "z_then": -0.1,
+    "z_now": -0.1
+   },
+   {
+    "series": "DCOILWTICO",
+    "label": "WTI 유가",
+    "unit": "$",
+    "then": 71,
+    "now": 100,
+    "z_then": 0.1,
+    "z_now": 1.6
+   },
+   {
+    "series": "DTWEXBGS",
+    "label": "달러지수",
+    "unit": "",
+    "then": 115.2,
+    "now": 121.7,
+    "z_then": 0.5,
+    "z_now": 1.1
+   },
+   {
+    "series": "VIXCLS",
+    "label": "VIX",
+    "unit": "",
+    "then": 21.2,
+    "now": 20.8,
+    "z_then": 0.3,
+    "z_now": 0.2
+   }
+  ],
+  "cycle": [
+   {
+    "metric": "wsts_sales_yoy",
+    "label": "반도체 매출 YoY",
+    "then": 0.12,
+    "now": 1.443
+   },
+   {
+    "metric": "wsts_yoy_chg6m",
+    "label": "YoY 6개월 변화",
+    "then": 0.02,
+    "now": 0.3
+   }
+  ],
+  "forward": {
+   "21": -0.048,
+   "63": 0.016,
+   "126": 0.264,
+   "252": 0.277
+  }
+ },
+ "2004-08-11": {
+  "match": {
+   "start": "2004-02-20",
+   "end": "2004-08-11",
+   "combined": 0.88,
+   "scores": {
+    "price_shape": 0.95,
+    "macro": 0.72,
+    "semi_cycle": 0.93
+   }
+  },
+  "price": {
+   "dtw_rank": 4,
+   "euclid_rank": 5,
+   "drawdown": {
+    "then": -0.18,
+    "now": -0.298
+   },
+   "drawdown_days": {
+    "then": 90,
+    "now": 135
+   }
+  },
+  "macro": [
+   {
+    "series": "DFF",
+    "label": "기준금리",
+    "unit": "%",
+    "then": 1.43,
+    "now": 3.88,
+    "z_then": -0.8,
+    "z_now": 0.4
+   },
+   {
+    "series": "DGS10",
+    "label": "10년물",
+    "unit": "%",
+    "then": 4.28,
+    "now": 4.95,
+    "z_then": 0.3,
+    "z_now": 0.9
+   },
+   {
+    "series": "T10Y2Y",
+    "label": "장단기 스프레드",
+    "unit": "%p",
+    "then": 1.9,
+    "now": 0.32,
+    "z_then": 1.1,
+    "z_now": -0.1
+   },
+   {
+    "series": "DCOILWTICO",
+    "label": "WTI 유가",
+    "unit": "$",
+    "then": 43,
+    "now": 100,
+    "z_then": -0.7,
+    "z_now": 1.6
+   },
+   {
+    "series": "DTWEXBGS",
+    "label": "달러지수",
+    "unit": "",
+    "then": null,
+    "now": 121.7,
+    "z_then": null,
+    "z_now": 1.1
+   },
+   {
+    "series": "VIXCLS",
+    "label": "VIX",
+    "unit": "",
+    "then": 15.4,
+    "now": 20.8,
+    "z_then": -0.5,
+    "z_now": 0.2
+   }
+  ],
+  "cycle": [
+   {
+    "metric": "wsts_sales_yoy",
+    "label": "반도체 매출 YoY",
+    "then": 0.31,
+    "now": 1.443
+   },
+   {
+    "metric": "wsts_yoy_chg6m",
+    "label": "YoY 6개월 변화",
+    "then": 0.08,
+    "now": 0.3
+   }
+  ],
+  "forward": {
+   "21": 0.029,
+   "63": 0.116,
+   "126": 0.121,
+   "252": 0.25
+  }
+ }
+}

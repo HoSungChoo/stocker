@@ -271,3 +271,44 @@ def write_broker_token(
     }
     with engine.begin() as conn:
         conn.execute(sa.text(sql), params)
+
+
+def read_event_rows(
+    kinds: list[str] | None = None,
+    event_id: int | None = None,
+    engine: sa.Engine | None = None,
+) -> pd.DataFrame:
+    """이벤트 원본 행(id,date,kind,title,source). event_impact 계산 입력용. date는 tz-naive."""
+    engine = engine or get_engine()
+    sql = (
+        "SELECT id, date, kind, title, source FROM events "
+        "WHERE (CAST(:kinds AS text[]) IS NULL OR kind = ANY(CAST(:kinds AS text[]))) "
+        "AND (CAST(:event_id AS bigint) IS NULL OR id = :event_id) ORDER BY date, id"
+    )
+    with engine.connect() as conn:
+        df = pd.read_sql(sa.text(sql), conn, params={"kinds": kinds, "event_id": event_id})
+    df["date"] = pd.to_datetime(df["date"])
+    return df
+
+
+def read_event_impact(
+    limit: int = 20,
+    kinds: list[str] | None = None,
+    engine: sa.Engine | None = None,
+) -> pd.DataFrame:
+    """이벤트 전후 수익률(event_impact)을 events와 조인해 |ret5| 내림차순으로.
+
+    columns=id,date,kind,title,source,ret5,ret_1m,ret_3m. date는 tz-naive datetime64.
+    ret5가 없는(None) 행은 맨 뒤. 계산된 적 없으면 빈 DataFrame(컬럼은 유지).
+    """
+    engine = engine or get_engine()
+    sql = (
+        "SELECT e.id, e.date, e.kind, e.title, e.source, i.ret5, i.ret_1m, i.ret_3m "
+        "FROM event_impact i JOIN events e ON e.id = i.event_id "
+        "WHERE (CAST(:kinds AS text[]) IS NULL OR e.kind = ANY(CAST(:kinds AS text[]))) "
+        "ORDER BY abs(i.ret5) DESC NULLS LAST, e.date DESC, e.id LIMIT :limit"
+    )
+    with engine.connect() as conn:
+        df = pd.read_sql(sa.text(sql), conn, params={"kinds": kinds, "limit": int(limit)})
+    df["date"] = pd.to_datetime(df["date"])
+    return df

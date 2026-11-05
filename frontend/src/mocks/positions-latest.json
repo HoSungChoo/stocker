@@ -1,0 +1,25 @@
+{
+ "snapshot_date": "2026-11-05",
+ "items": [
+  {
+   "symbol": "SOXL",
+   "quantity": 120,
+   "avg_price": 41.5,
+   "last_price": 43.19,
+   "market_value": 5182.32,
+   "pnl": 202.32,
+   "pnl_rate": 0.0406,
+   "currency": "USD"
+  },
+  {
+   "symbol": "RAM",
+   "quantity": 40,
+   "avg_price": 22.1,
+   "last_price": 20.8,
+   "market_value": 832,
+   "pnl": -52,
+   "pnl_rate": -0.0588,
+   "currency": "USD"
+  }
+ ]
+}
