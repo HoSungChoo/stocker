@@ -1,4 +1,4 @@
-"""CLI: python -m stocker.ingest prices|fred|semi"""
+"""CLI: python -m stocker.ingest prices|fred|semi|events"""
 
 from __future__ import annotations
 
@@ -67,6 +67,28 @@ def semi() -> None:
 
     df = fetch_semi()
     _report(df, "metric", store_semi(df))
+
+
+@app.command()
+def events(
+    only: str = typer.Option("", "--only", help="쉼표 구분 kind만 수집 (예: fomc,policy)"),
+) -> None:
+    """FOMC·CPI·고용보고서·실적일·정책 시드를 events에 적재."""
+    from stocker.ingest.events import VALID_KINDS, collect_events, store_events
+
+    kinds = _split(only)
+    unknown = [k for k in kinds if k not in VALID_KINDS]
+    if unknown:
+        typer.echo(f"오류: 알 수 없는 kind {unknown}. 허용: {', '.join(VALID_KINDS)}", err=True)
+        raise typer.Exit(1)
+    df = collect_events(kinds or None)
+    if df.empty:
+        typer.echo("받은 데이터가 없다", err=True)
+        raise typer.Exit(1)
+    _report(df, "kind", store_events(df))
+    missing = [k for k in (kinds or VALID_KINDS) if k not in set(df["kind"])]
+    if missing:
+        typer.echo(f"경고: 데이터가 없는 kind: {', '.join(missing)}", err=True)
 
 
 if __name__ == "__main__":

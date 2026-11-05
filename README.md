@@ -21,6 +21,22 @@ uv run python -m stocker.ingest fred
 uv run python -m stocker.sim --index SOXX --leverage 3 --start 2022-01-01 --compare SOXL
 ```
 
+대시보드 (http://localhost:8501):
+
+```bash
+make web                     # 로컬: uv run streamlit run stocker/web/app.py
+docker compose up web        # docker (db 자동 기동)
+```
+
+## DB 초기화가 필요한 경우
+
+스키마의 hypertable 조각 간격이 바뀌었으면(2026-11-05 이전 볼륨) 볼륨을 지우고 다시 적재한다. 모든 데이터는 재다운로드 가능하다.
+
+```bash
+docker compose down -v && docker compose up -d db && uv run python -m stocker.db init
+uv run python -m stocker.ingest prices && uv run python -m stocker.ingest fred && uv run python -m stocker.ingest semi && uv run python -m stocker.ingest events
+```
+
 ## 상태
 
 Phase 0 진행 중. 로드맵은 docs/PLAN.md 참고.

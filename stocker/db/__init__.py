@@ -140,3 +140,28 @@ def read_cycle(metric: str, start=None, end=None, engine: sa.Engine | None = Non
         df = pd.read_sql(sa.text(sql), conn, params=params)
     idx = pd.DatetimeIndex(pd.to_datetime(df["date"]), name="date")
     return pd.Series(df["value"].to_numpy(dtype="float64"), index=idx, name=metric)
+
+
+def read_events(
+    start=None,
+    end=None,
+    kinds: list[str] | None = None,
+    engine: sa.Engine | None = None,
+) -> pd.DataFrame:
+    """이벤트(events). columns=date,kind,title,symbol,scheduled,source,meta. date 오름차순.
+
+    date는 tz-naive datetime64, meta는 dict.
+    """
+    engine = engine or get_engine()
+    sql = (
+        "SELECT date, kind, title, symbol, scheduled, source, meta FROM events "
+        "WHERE (CAST(:start AS date) IS NULL OR date >= :start) "
+        "AND (CAST(:end AS date) IS NULL OR date <= :end) "
+        "AND (CAST(:kinds AS text[]) IS NULL OR kind = ANY(CAST(:kinds AS text[]))) "
+        "ORDER BY date, kind, symbol NULLS FIRST, title"
+    )
+    params = {"start": _date_bound(start), "end": _date_bound(end), "kinds": kinds}
+    with engine.connect() as conn:
+        df = pd.read_sql(sa.text(sql), conn, params=params)
+    df["date"] = pd.to_datetime(df["date"])
+    return df

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS prices_daily (
     PRIMARY KEY (symbol, date)
 );
 
-SELECT create_hypertable('prices_daily', 'date', if_not_exists => TRUE);
+SELECT create_hypertable('prices_daily', 'date', if_not_exists => TRUE, chunk_time_interval => INTERVAL '5 years');
 
 CREATE TABLE IF NOT EXISTS macro_series (
     series_id   text             NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS macro_series (
     PRIMARY KEY (series_id, date)
 );
 
-SELECT create_hypertable('macro_series', 'date', if_not_exists => TRUE);
+SELECT create_hypertable('macro_series', 'date', if_not_exists => TRUE, chunk_time_interval => INTERVAL '5 years');
 
 CREATE TABLE IF NOT EXISTS events (
     id          bigserial PRIMARY KEY,
@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS events (
     meta        jsonb
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS events_uniq
+    ON events (date, kind, (coalesce(symbol, '')), title);
+
 CREATE TABLE IF NOT EXISTS semi_cycle (
     metric      text             NOT NULL,
     date        date             NOT NULL,
@@ -48,4 +51,4 @@ CREATE TABLE IF NOT EXISTS semi_cycle (
     PRIMARY KEY (metric, date)
 );
 
-SELECT create_hypertable('semi_cycle', 'date', if_not_exists => TRUE);
+SELECT create_hypertable('semi_cycle', 'date', if_not_exists => TRUE, chunk_time_interval => INTERVAL '5 years');

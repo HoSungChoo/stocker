@@ -56,7 +56,7 @@ Makefile
 | source | text | `yfinance` |
 | ingested_at | timestamptz | default now() |
 
-TimescaleDB hypertable on `date`. PK `(symbol, date)`.
+TimescaleDB hypertable on `date`, **`chunk_time_interval = 5 years`**(모든 hypertable 공통. 기본값 7일을 쓰면 일별 32년 = 수천 조각이 되어 읽기마다 락 한도를 넘긴다). PK `(symbol, date)`.
 
 ### `macro_series`
 | 컬럼 | 타입 | 비고 |
@@ -292,15 +292,15 @@ CLI: `python -m stocker.similarity --as-of 2026-11-04 [--window 120] [--top-k 5]
 - 이벤트는 **맥락 표시용**이다. 유사도 점수에 넣지 않는다.
 - `scheduled=true`는 사전에 공개된 일정(FOMC, CPI, 실적일). `false`는 사후 기록(정책·전쟁·선거).
 - 테이블은 Phase 0의 `events`(계약 3절) 그대로. `kind` 값: `fomc`, `cpi`, `jobs`, `earnings`, `policy`, `war`, `election`.
-- 중복 방지: `(date, kind, coalesce(symbol,''), title)` 유니크 인덱스를 schema.sql에 추가한다(`CREATE UNIQUE INDEX IF NOT EXISTS`).
+- 중복 방지: `(date, kind, coalesce(symbol,''), title)` 유니크 인덱스 `events_uniq`. 적재는 `upsert_df`(PK 기준)가 아니라 `events.py`에서 이 인덱스 기준 `ON CONFLICT DO UPDATE`로 직접 한다(실적 `meta`가 발표 후 갱신되도록).
 
 ### 9.2 소스
 | kind | 소스 | 범위 | 방법 |
 |---|---|---|---|
 | fomc | 연준 FOMC 일정 페이지(현재·과거 연도) | 1994~ | stdlib `urllib` + `html.parser`/정규식. 외부 파싱 라이브러리 추가 금지. 막히면 `seed/events/fomc.json`에 수작업 목록을 만들고 출처 URL을 적는다 |
-| cpi, jobs | BLS 발표 일정 | 가능한 범위(최근 수년 + 올해·내년 예정) | 같은 방식. 과거 일정이 없으면 "해당 월 둘째 주 화~금" 같은 근사는 **쓰지 않는다**(없으면 없는 대로) |
+| cpi, jobs | FRED 릴리스 일정 API(발표 주체는 BLS. BLS 사이트는 자동 접속을 403으로 막아 우회하지 않음) | 1994~ 올해·내년 예정 | `FRED_API_KEY` 필요. 없으면 경고 후 건너뜀. 근사 날짜 생성은 **하지 않는다** |
 | earnings | yfinance `Ticker(sym).earnings_dates` | 최근 ~2년 + 예정 | 심볼: NVDA, TSM, MU, AMD, ASML, AVGO, INTC. `symbol` 컬럼에 저장 |
-| policy, war, election | `seed/events/policy.json` 수작업 | 1994~ | 최소 항목: 2000 닷컴 붕괴 시작, 2001 9·11, 2008 리먼, 2011 동일본 지진(반도체 공급), 2018 미중 관세 1차, 2019 일본 수출규제, 2020 코로나, 2022 CHIPS법·10월 대중 수출규제, 2023 10월 수출규제 강화, 2024·2020·2016·2012·2008 미 대선, 2022 우크라이나 전쟁, 2025 관세. 각 항목에 `title`, `kind`, `date`, `meta.source`(URL) |
+| policy, war, election | `seed/events/policy.json` 수작업. 시장 충격(닷컴 붕괴, 리먼, 코로나 등)은 `policy`에 두고 `meta.category="shock"`로 구분 | 1994~ | 최소 항목: 2000 닷컴 붕괴 시작, 2001 9·11, 2008 리먼, 2011 동일본 지진(반도체 공급), 2018 미중 관세 1차, 2019 일본 수출규제, 2020 코로나, 2022 CHIPS법·10월 대중 수출규제, 2023 10월 수출규제 강화, 2024·2020·2016·2012·2008 미 대선, 2022 우크라이나 전쟁, 2025 관세. 각 항목에 `title`, `kind`, `date`, `meta.source`(URL) |
 
 ### 9.3 인터페이스
 ```python
@@ -325,7 +325,7 @@ CLI: `python -m stocker.ingest events [--only fomc,policy]`. kind별 행 수·�
 
 ### 10.2 화면 구성 (위→아래, 한 페이지)
 1. **헤더**: 기준일(as_of), `n_candidates`, `layers_missing`(있으면 경고 배너: "매크로 레이어 꺼짐 — FRED 키 필요"), 표본 수 `n`.
-2. **사이드바 컨트롤**: as_of(날짜, 기본 DB 마지막 날), window(60/120/250), top_k(3~10), 가중치 슬라이더 3개(합 1로 정규화), cycle_lag_days, "SOXL 시뮬 보기" 토글.
+2. **사이드바 컨트롤**: as_of(날짜, 기본 DB 마지막 날), window(60/120/250), top_k(3~10), 가중치 슬라이더 3개(합 1로 정규화), cycle_lag_days, "SOXL 시뮬 보기" 토글, 이벤트 종류 다중 선택, "DB 다시 읽기"(캐시 비움) 버튼.
 3. **종합 결과 카드**: 상위 K 표(구간, 레이어별 점수, 종합, fwd 1/3/6/12m). 레이어 점수는 항상 분리 표시.
 4. **겹친 차트**: 현재 창(굵은 선)과 상위 K 과거 창(얇은 선)을 창 시작=100으로 정규화해 겹친다. x축은 "창 시작 후 거래일"(0~window), 과거 창은 window 이후 252일까지 연장(점선)해 "그 뒤 어떻게 됐나"를 같이 보여준다. 현재 창은 window까지만.
 5. **이벤트 마커**: 위 차트에 `read_events`로 가져온 이벤트를 kind별 아이콘/색으로 찍는다. 현재 창과 각 과거 창 모두. 호버에 title. 이벤트가 없거나 `read_events`가 없으면(ImportError) 마커 없이 그린다.
@@ -338,7 +338,7 @@ CLI: `python -m stocker.ingest events [--only fomc,policy]`. kind별 행 수·�
 stocker/web/
   app.py            # Streamlit 엔트리. 레이아웃만
   data.py           # run(), read_prices, read_events, sim 호출을 모아 캐시(@st.cache_data, ttl 1h)
-  charts.py         # Plotly figure 생성 함수(순수: DataFrame → Figure)
+  charts.py         # 순수 함수. DataFrame 변환(build_overlay, attach_events, build_sim 등)과 Plotly Figure 생성. streamlit 미import
 tests/test_web.py   # charts.py 함수가 합성 데이터로 Figure를 만드는지(렌더링 없이). streamlit 미import
 ```
 - `data.py`의 DB 접근은 `stocker.db`·`stocker.similarity.loaders`만 통해서. 엔진 내부를 재구현하지 않는다.
