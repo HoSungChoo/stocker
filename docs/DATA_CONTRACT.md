@@ -412,3 +412,69 @@ CLI: `python -m stocker.report run [--as-of] [--no-deliver]`, `python -m stocker
 
 ### 12.6 테스트
 - 템플릿 렌더(합성 Report → Markdown에 필수 섹션 7개 존재), `compare_with_previous`(진입/이탈 계산), `deliver`가 채널 미설정 시 파일만 쓰는지, `summarize`가 키 없으면 None, 스케줄러 cron 표현이 `REPORT_TIME` 파싱대로인지. `@pytest.mark.db`: `run_daily(--no-deliver)` 후 `report_runs` 행 존재, 두 번 실행해도 PK 충돌 없이 갱신.
+
+---
+
+# Phase 4 계약: 내 포지션 반영 (토스증권 오픈 API, 읽기 전용)
+
+## 13. 범위 결정
+- **읽기 전용.** 계좌·보유종목·시세 조회만. 주문 엔드포인트는 호출하지 않는다(설계 원칙: 이 도구는 매매 신호가 아니다).
+- 목적: (1) 보유 SOXL을 보고서·대시보드에 넣고, 유사 국면의 이후 수익 분포를 **내 평가액**에 적용해 금액으로 보여준다. (2) 매일 포지션 스냅샷을 쌓아 사후 복기에 쓴다.
+- 자격 증명은 `.env`에만. 세션은 자격 증명 없이 mock으로 구현·테스트하고, 실제 확인용 CLI를 남긴다.
+
+## 14. 토스 오픈 API 사실 (공식 문서 `openapi.tossinvest.com/openapi-docs/overview.md`, 2026-11-05 확인)
+- 발급: WTS 로그인 → 설정 → Open API → `client_id`/`client_secret`. **허용 IP 관리**에 호출 IP를 등록해야 함(미등록 403 `ip-not-allowed`).
+- 토큰: `POST https://openapi.tossinvest.com/oauth2/token`, `application/x-www-form-urlencoded`, `grant_type=client_credentials&client_id=..&client_secret=..`. 응답 `access_token`, `token_type=Bearer`, `expires_in`(예시 86400). refresh 토큰 없음. **클라이언트당 유효 토큰 1개**: 재발급하면 이전 토큰 무효(`token-revoked`).
+- 공통 헤더: `Authorization: Bearer ..`. 계좌·자산 호출은 `X-Tossinvest-Account: {accountSeq}` 필수(없으면 400 `account-header-required`).
+- `GET /api/v1/accounts` → `[{accountNo, accountSeq, accountType}]` (BROKERAGE만).
+- `GET /api/v1/holdings?symbol=` → `result: {totalPurchaseAmount, marketValue, profitLoss, dailyProfitLoss, items[]}`; item: `symbol, name, marketCountry, currency, quantity, lastPrice, averagePurchasePrice, marketValue{purchaseAmount, amount, amountAfterCost}, profitLoss{amount, amountAfterCost, rate, rateAfterCost}, dailyProfitLoss, cost{commission, tax}`. `rate`는 소수(0.1077 = 10.77%).
+- `GET /api/v1/buying-power` → `{currency, cashBuyingPower}`.
+- `GET /api/v1/prices?symbols=SOXL,SOXX` (최대 200) → `[{symbol, timestamp, lastPrice, currency}]`. 미국 종목은 티커 그대로.
+- 오류 봉투 `{"error":{"requestId","code","message","data"}}`. 429 시 `Retry-After`.
+- 한도(TPS): AUTH 5, ACCOUNT 1, ASSET 5, MARKET_DATA 15. 샌드박스 없음.
+
+## 15. 구현 (`stocker.broker`) — Sonnet 세션
+
+### 15.1 환경변수 (`.env.example`에 추가)
+| 이름 | 설명 |
+|---|---|
+| `TOSS_CLIENT_ID`, `TOSS_CLIENT_SECRET` | 둘 다 있을 때만 브로커 기능 활성 |
+| `TOSS_ACCOUNT_SEQ` | 선택. 비우면 `/accounts`의 첫 BROKERAGE 계좌 |
+
+### 15.2 테이블
+`broker_tokens(client_id text PK, access_token text, expires_at timestamptz, issued_at timestamptz)` — 토큰은 클라이언트당 1개뿐이므로 **반드시 DB에 공유 캐시**한다. scheduler 컨테이너와 대시보드가 각자 발급하면 서로를 무효화한다. 만료 60초 전까지 재사용, 401/`token-revoked`면 1회 재발급.
+
+`positions_snapshot(snapshot_date date, symbol text, name text, market_country text, currency text, quantity double, avg_price double, last_price double, market_value double, pnl double, pnl_rate double, source text default 'toss', fetched_at timestamptz, PK(snapshot_date, symbol))` — 일반 테이블(hypertable 아님).
+
+### 15.3 인터페이스
+```python
+# stocker/broker/toss.py  (stdlib urllib만, 외부 HTTP 라이브러리 금지)
+class TossClient:
+    def __init__(self, client_id, client_secret, account_seq=None, engine=None)
+    def token(self) -> str                 # DB 캐시 → 없거나 만료면 발급 → 저장
+    def accounts(self) -> list[dict]
+    def holdings(self, symbol=None) -> dict   # result 그대로(dict)
+    def buying_power(self) -> dict
+    def prices(self, symbols: list[str]) -> list[dict]
+    # 429면 Retry-After만큼 1회 대기 후 재시도. 오류 봉투는 TossApiError(code, message, request_id)로.
+def from_env(engine=None) -> TossClient | None   # 자격 증명 없으면 None
+# stocker/broker/positions.py
+def snapshot_positions(client, snapshot_date=None, engine=None) -> pd.DataFrame   # holdings → positions_snapshot upsert, DataFrame 반환
+def latest_positions(engine=None) -> pd.DataFrame                                # 최신 snapshot_date의 행들
+def apply_distribution(position_value: float, forward_summary: pd.DataFrame, leverage_paths: dict | None) -> pd.DataFrame
+    # SOX 분포(median/p10/p90)를 평가액에 곱해 horizon별 금액. SOXL은 SOX 분포를 그대로 쓰지 않고,
+    # 대시보드와 같은 방식으로 각 유사 국면 경로를 simulate_leveraged(3x)에 통과시킨 결과의 median/p10/p90을 쓴다.
+# stocker/db  (이 세션이 추가)
+def read_positions(start=None, end=None, engine=None) -> pd.DataFrame
+```
+CLI: `python -m stocker.broker check`(계좌·보유·매수가능금액 출력, 자격 증명 없으면 안내 후 종료코드 1), `python -m stocker.broker snapshot`.
+
+### 15.4 통합
+- `stocker/report/pipeline.py` `refresh_data`에 `positions` 단계 추가(자격 증명 없으면 "미설정"으로 기록, 실패해도 계속). 보고서·텔레그램 요약에 "내 포지션" 섹션: 보유 SOXL 수량·평단·평가액·손익률, 그리고 창별로 "유사 국면 경로를 3배 레버리지로 따라갔다면 12개월 후 평가액 중앙값 / 하위 10% / 상위 10%". 포지션이 없으면 섹션 생략.
+- `stocker/web/app.py` SOXL 시뮬 섹션 위에 "내 포지션" 카드(같은 숫자). 자격 증명 없으면 안내 문구만.
+- 정직성: 금액 아래에 "표본 n개의 과거 경로를 적용한 값이며 예측이 아니다" 고정.
+
+### 15.5 테스트
+- `urllib.request.urlopen` monkeypatch로: 토큰 발급·캐시 재사용·만료 재발급·`token-revoked` 1회 재시도, 헤더(`X-Tossinvest-Account`) 포함, 429 Retry-After 대기(sleep monkeypatch), 오류 봉투 → TossApiError.
+- `apply_distribution` 손계산 검증. `snapshot_positions` upsert 인자 검증. 보고서 템플릿에 포지션 섹션 유무.
+- `@pytest.mark.db`: snapshot → read_positions 왕복, broker_tokens 캐시 왕복.
