@@ -7,7 +7,18 @@ from fredapi import Fred
 
 from stocker.config import settings
 
-DEFAULT_SERIES = ["DFF", "DGS2", "DGS10", "T10Y2Y", "DCOILWTICO", "DTWEXBGS", "VIXCLS", "CPIAUCSL"]
+DEFAULT_SERIES = [
+    "DFF",
+    "DGS2",
+    "DGS10",
+    "T10Y2Y",
+    "DCOILWTICO",
+    "DTWEXBGS",
+    "VIXCLS",
+    "CPIAUCSL",
+    "M2SL",  # 월간 M2 (돈의 가치)
+    "WALCL",  # 주간 연준 자산, 2002-12~
+]
 
 COLUMNS = ["series_id", "date", "value", "source"]
 
