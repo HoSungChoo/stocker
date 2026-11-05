@@ -18,6 +18,9 @@ DEFAULT_SERIES = [
     "CPIAUCSL",
     "M2SL",  # 월간 M2 (돈의 가치)
     "WALCL",  # 주간 연준 자산, 2002-12~
+    "BAMLH0A0HYM2",  # 하이일드 OAS(%p), 신용 스트레스, 1996-12~ 일간
+    "BAMLH0A3HYC",  # CCC 이하 OAS(%p), 가장 위험한 회사채의 가산금리, 1996-12~ 일간
+    "DGS3MO",  # 3개월물 국채(%), 금리 방향 보조, 1981~ 일간
 ]
 
 COLUMNS = ["series_id", "date", "value", "source"]

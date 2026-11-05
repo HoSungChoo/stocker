@@ -1,7 +1,7 @@
 import { CartesianGrid, Line, LineChart, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { OverlayEvent, OverlayResponse, Point, SimilarityResponse } from '../api'
 import { buildRows, combinedOf, currentKey, seriesFor } from '../lib/chartData'
-import { markerShape, type MarkerShape } from '../lib/kinds'
+import { markerGroup, markerShape, type KindGroup, type MarkerShape } from '../lib/kinds'
 import { approxDate } from '../lib/weights'
 import { COLORS, rankColor } from '../lib/palette'
 
@@ -10,6 +10,8 @@ interface Props {
   sim?: SimilarityResponse
   window: number
   hidden: ReadonlySet<number>
+  /** 켜진 이벤트 그룹. 없으면 전부 보인다. 끄면 현재·과거 창 모두에서 해당 마커가 사라진다. */
+  markers?: ReadonlySet<KindGroup>
 }
 
 const AFTER = 252
@@ -90,8 +92,15 @@ function ChartTip({ active, label, overlay, sim, window, hidden }: TipProps) {
   )
 }
 
-function eventDots(events: OverlayEvent[], points: Point[], color: string, keyPrefix: string) {
+function eventDots(
+  events: OverlayEvent[],
+  points: Point[],
+  color: string,
+  keyPrefix: string,
+  markers?: ReadonlySet<KindGroup>,
+) {
   return events.flatMap((e, i) => {
+    if (markers && !markers.has(markerGroup(e.kind))) return []
     const y = valueAt(points, e.d)
     if (y == null) return []
     return [
@@ -109,7 +118,7 @@ function eventDots(events: OverlayEvent[], points: Point[], color: string, keyPr
   })
 }
 
-export default function OverlayChart({ overlay, sim, window, hidden }: Props) {
+export default function OverlayChart({ overlay, sim, window, hidden, markers }: Props) {
   const rows = buildRows(overlay, hidden)
   const series = seriesFor(overlay, hidden)
   const end = window - 1
@@ -185,10 +194,10 @@ export default function OverlayChart({ overlay, sim, window, hidden }: Props) {
             activeDot={{ r: 4 }}
             isAnimationActive={false}
           />
-          {eventDots(overlay.current.events, overlay.current.points, COLORS.current, 'cur')}
+          {eventDots(overlay.current.events, overlay.current.points, COLORS.current, 'cur', markers)}
           {overlay.matches
             .filter((m) => !hidden.has(m.rank))
-            .flatMap((m) => eventDots(m.events, m.window_points, rankColor(m.rank), `m${m.rank}`))}
+            .flatMap((m) => eventDots(m.events, m.window_points, rankColor(m.rank), `m${m.rank}`, markers))}
         </LineChart>
       </ResponsiveContainer>
     </div>

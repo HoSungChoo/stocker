@@ -28,6 +28,16 @@ export function useOverlay(q: SimilarityQuery) {
   })
 }
 
+export function useChecklist(q: SimilarityQuery) {
+  const api = useApi()
+  return useQuery({
+    queryKey: ['checklist', q],
+    queryFn: () => api.checklist(q),
+    staleTime: HOUR,
+    placeholderData: keepPreviousData,
+  })
+}
+
 export function useExplain(end: string, q: SimilarityQuery, enabled = true) {
   const api = useApi()
   return useQuery({

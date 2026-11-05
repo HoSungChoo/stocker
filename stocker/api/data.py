@@ -150,6 +150,24 @@ def rf_series() -> pd.Series | None:
     return None
 
 
+# ----------------------------------------------------------------- 체크리스트
+
+
+def load_checklist_inputs():
+    """(체크리스트용 macro 시리즈 dict, SOX 종가). DB에서 읽는다 (캐시 없음)."""
+    from stocker.checklist import load_inputs as _load
+
+    return _load(engine())
+
+
+def checklist_signals(date) -> list:
+    """date 시점의 체크리스트 신호 (date 이하 데이터만). 입력은 1시간 캐시."""
+    from stocker.checklist import evaluate
+
+    series, close = inputs_cache.get_or_set(make_key("checklist_inputs"), load_checklist_inputs)
+    return evaluate(date, series, close)
+
+
 # ----------------------------------------------------------------- 이벤트
 
 

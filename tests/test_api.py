@@ -208,6 +208,34 @@ def test_overlay_schema(client):
     assert all(ev["kind"] in {"fomc", "cpi"} for ev in all_ev)
 
 
+# ------------------------------------------------------------------ checklist
+def test_checklist_schema(client, monkeypatch):
+    """now + 상위 K 국면의 신호 9개씩. 평가 날짜는 as_of / 각 국면의 창 끝. 데이터 없음은 null."""
+    from stocker.checklist import evaluate
+
+    calls = []
+
+    def fake_signals(date):
+        calls.append(pd.Timestamp(date))
+        return evaluate(date, {"T10Y2Y": pd.Series(-0.5, index=CLOSE.index)}, CLOSE)
+
+    monkeypatch.setattr(api_data, "checklist_signals", fake_signals)
+    r = client.get("/api/checklist?top_k=3")
+    assert r.status_code == 200
+    b = r.json()
+    sim = client.get("/api/similarity?top_k=3").json()
+    assert len(b["now"]) == 9 and len(b["matches"]) == 3
+    assert calls[0] == pd.Timestamp(sim["as_of"])
+    assert [pd.Timestamp(m["end"]) for m in b["matches"]] == calls[1:]
+    assert [m["end"] for m in b["matches"]] == [m["end"] for m in sim["matches"]]
+    assert [m["rank"] for m in b["matches"]] == [1, 2, 3]
+    sig = {s["id"]: s for s in b["now"]}
+    keys = {"id", "group", "label", "on", "value", "threshold", "unit", "op"}
+    assert set(sig["bubble_inversion"]) == keys
+    assert sig["bubble_inversion"]["on"] is True and sig["bubble_inversion"]["group"] == "bubble"
+    assert sig["crisis_hy"]["on"] is None and sig["crisis_hy"]["value"] is None
+
+
 # ------------------------------------------------------------------ explain
 def test_explain_schema_and_errors(client):
     end = client.get("/api/similarity").json()["matches"][0]["end"]

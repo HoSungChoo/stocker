@@ -109,6 +109,26 @@ export interface OverlayResponse {
   }[]
 }
 
+export type SignalGroup = 'bottom' | 'bubble' | 'heat' | 'crisis'
+
+/** 계약 PHASE6C 30절. on=null 은 데이터 없음. 켜짐 조건은 `value {op} threshold`. */
+export interface Signal {
+  id: string
+  group: SignalGroup
+  label: string
+  on: boolean | null
+  value: number | null
+  threshold: number
+  unit: string
+  op: '>=' | '<=' | '<'
+}
+
+export interface ChecklistResponse {
+  now: Signal[]
+  /** 유사도 상위 K 국면 순서(rank 1..K). end = 국면 창의 끝 날짜 */
+  matches: { rank: number; end: string; signals: Signal[] }[]
+}
+
 export interface MacroRow {
   series: string
   label: string
@@ -208,6 +228,7 @@ export interface Api {
   similarity(q: SimilarityQuery): Promise<SimilarityResponse>
   overlay(q: SimilarityQuery): Promise<OverlayResponse>
   explain(end: string, q: SimilarityQuery): Promise<ExplainResponse>
+  checklist(q: SimilarityQuery): Promise<ChecklistResponse>
   eventsUpcoming(days: number): Promise<UpcomingEvent[]>
   eventsImpact(opts: { limit: number; kinds?: string[] }): Promise<ImpactEvent[]>
   eventPath(id: number, days: number): Promise<EventPath>

@@ -114,3 +114,11 @@ CREATE TABLE IF NOT EXISTS backtest_runs (
     created_at  timestamptz      NOT NULL DEFAULT now(),
     PRIMARY KEY (mode, as_of, horizon)
 );
+
+-- Phase 6B (PLAN_PHASE6B): arm 구분용 정보 컬럼. 키는 그대로 (mode, as_of, horizon)이고
+-- mode에 arm 이름(shape_k10, regime_k20 ...)을 넣는다. n_eff = 실질 표본 수(서로 126거래일 이상
+-- 떨어진 선택 창의 수). 컬럼 추가만 하므로 기존 행은 NULL.
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS preset  text;
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS top_k   int;
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS min_gap int;
+ALTER TABLE backtest_runs ADD COLUMN IF NOT EXISTS n_eff   int;

@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import ChecklistPanel from '../components/ChecklistPanel'
 import Controls, { type ControlState } from '../components/Controls'
 import Distribution from '../components/Distribution'
 import EvalCards from '../components/EvalCards'
 import OverlayCard from '../components/OverlayCard'
 import { ErrorBox, Honesty, LayersBanner, Loading, NotApplicableBanner } from '../components/Status'
-import { useHealth, useOverlay, useSimilarity } from '../hooks'
+import { useChecklist, useHealth, useOverlay, useSimilarity } from '../hooks'
+import { parseMarkers, serializeMarkers, type KindGroup } from '../lib/kinds'
 import { useDebounced } from '../lib/useDebounced'
 import { DEFAULT_WEIGHTS } from '../lib/weights'
 import type { SimilarityQuery } from '../api'
@@ -46,6 +48,17 @@ export default function MainPage() {
   const health = useHealth()
   const sim = useSimilarity(q)
   const overlay = useOverlay(q)
+  const checklist = useChecklist(q)
+
+  // 이벤트 마커 토글은 URL 쿼리(markers=fomc,cpi)가 원천이라 새로고침해도 유지된다.
+  const markers = useMemo(() => parseMarkers(params.get('markers')), [params])
+  const onMarkersChange = (next: ReadonlySet<KindGroup>) => {
+    const p = new URLSearchParams(params)
+    const v = serializeMarkers(next)
+    if (v == null) p.delete('markers')
+    else p.set('markers', v)
+    setParams(p, { replace: true })
+  }
 
   const noMatches = sim.data?.forward_summary_source === 'baseline'
   // 기준선으로 대체된 경우 forward_summary 는 닮은 국면이 아니라 전체 과거 분포이므로 헤더·푸터의 상승/하락은 비운다.
@@ -87,7 +100,15 @@ export default function MainPage() {
       {overlay.isError && <ErrorBox error={overlay.error} what="겹친 차트" />}
       {(sim.isLoading || overlay.isLoading) && <Loading what="유사 국면을 찾는 중…" />}
 
-      {overlay.data && <OverlayCard overlay={overlay.data} sim={sim.data} window={settled.window} />}
+      {overlay.data && (
+        <OverlayCard
+          overlay={overlay.data}
+          sim={sim.data}
+          window={settled.window}
+          markers={markers}
+          onMarkersChange={onMarkersChange}
+        />
+      )}
       {sim.data && (
         <>
           <Distribution
@@ -96,7 +117,9 @@ export default function MainPage() {
             n={noMatches ? 0 : (usedN ?? 0)}
             noMatches={noMatches}
           />
-          <EvalCards matches={sim.data.matches} fit={sim.data.fit} q={q} />
+          {checklist.isError && <ErrorBox error={checklist.error} what="체크리스트" />}
+          {checklist.data && <ChecklistPanel data={checklist.data} />}
+          <EvalCards matches={sim.data.matches} fit={sim.data.fit} q={q} checklist={checklist.data} />
           <Honesty>
             <strong>
               {noMatches ? '표본 0개(기준선 사용).' : `표본 ${usedN}개.`}

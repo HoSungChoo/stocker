@@ -1,11 +1,21 @@
 """엔드포인트 모음. 각 모듈이 APIRouter `router`를 가진다."""
 
-from stocker.api.routes import events, explain, health, overlay, positions, report, similarity
+from stocker.api.routes import (
+    checklist,
+    events,
+    explain,
+    health,
+    overlay,
+    positions,
+    report,
+    similarity,
+)
 
 ROUTERS = [
     health.router,
     similarity.router,
     overlay.router,
+    checklist.router,
     explain.router,
     events.router,
     positions.router,

@@ -2,6 +2,7 @@
 // mock 은 scripts/gen-mocks.mjs 가 만든다 (17절 스키마와 같은 모양).
 import type {
   Api,
+  ChecklistResponse,
   ExplainResponse,
   EventPath,
   Health,
@@ -17,6 +18,7 @@ import health from '../mocks/health.json'
 import similarity from '../mocks/similarity.json'
 import overlay from '../mocks/overlay.json'
 import explain from '../mocks/explain.json'
+import checklist from '../mocks/checklist.json'
 import upcoming from '../mocks/events-upcoming.json'
 import impact from '../mocks/events-impact.json'
 import eventPath from '../mocks/event-path.json'
@@ -51,6 +53,7 @@ export function createMockApi({ latency = 150, today }: MockOptions = {}): Api {
     health: () => delay(health as Health, latency),
     similarity: () => delay(similarity as unknown as SimilarityResponse, latency),
     overlay: () => delay(overlay as unknown as OverlayResponse, latency),
+    checklist: () => delay(checklist as unknown as ChecklistResponse, latency),
     explain: (end) => {
       const e = explainMap[end]
       return e ? delay(e, latency) : Promise.reject(new Error(`mock: explain ${end} 없음`))

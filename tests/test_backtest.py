@@ -336,3 +336,227 @@ def test_backtest_runs_round_trip(engine):
     finally:
         with engine.begin() as conn:
             conn.execute(sa.text("DELETE FROM backtest_runs WHERE mode = 'test_mode'"))
+
+
+# ------------------------------------------------------------------ Phase 6B (PLAN_PHASE6B)
+def test_phase6b_preset_arms_match_plan_table():
+    """2절 표: arm 9개, (모드, top_k, min_gap)이 문서대로, 순서도 문서대로."""
+    from stocker.backtest.presets import PHASE6B_ARMS, get_preset
+
+    arms = get_preset("phase6b")
+    assert arms is PHASE6B_ARMS and len(arms) == 9
+    assert [(a.name, a.mode, a.top_k, a.min_gap) for a in arms] == [
+        ("baseline", "baseline", None, None),
+        ("shape_k5", "shape", 5, 250),
+        ("regime_k5", "regime", 5, 250),
+        ("shape_k10", "shape", 10, 250),
+        ("regime_k10", "regime", 10, 250),
+        ("shape_k20", "shape", 20, 126),
+        ("regime_k20", "regime", 20, 126),
+        ("shape_k30", "shape", 30, 63),
+        ("regime_k30", "regime", 30, 63),
+    ]
+    # k=5 두 개만 참고 줄(Phase 6과 동일 설정)
+    assert [a.name for a in arms if a.reference] == ["shape_k5", "regime_k5"]
+    with pytest.raises(ValueError):
+        get_preset("nope")
+
+
+def test_phase6b_arm_config_changes_only_k_and_gap():
+    from stocker.backtest.harness import arm_config
+    from stocker.backtest.presets import arm_by_name, get_preset
+
+    cfg = SimilarityConfig(window=WINDOW)
+    arm = arm_by_name(get_preset("phase6b"), "regime_k20")
+    c2 = arm_config(arm, cfg)
+    assert (c2.top_k, c2.min_gap_days, c2.mode) == (20, 126, "regime")
+    # 나머지(가중치·적합 기준·창 길이)는 그대로
+    assert c2.window == WINDOW and c2.weights == cfg.weights
+    assert c2.regime_weights == cfg.regime_weights and c2.fit_drawdown_pp == cfg.fit_drawdown_pp
+    assert arm_config(arm_by_name(get_preset("phase6b"), "baseline"), cfg) is cfg
+
+
+def test_effective_count_hand_computed():
+    """실질 표본 수: 서로 gap 이상 떨어진 위치의 수 (정렬 후 탐욕)."""
+    from stocker.backtest.presets import effective_count
+
+    # 0, 50, 200, 330 / gap 126 → 0 ✓, 50 ✗(0과 50), 200 ✓(0과 200), 330 ✓(200과 130) → 3
+    assert effective_count([0, 50, 200, 330], 126) == 3
+    # 순서가 섞여도 같다
+    assert effective_count([330, 0, 200, 50], 126) == 3
+    # 모두 촘촘하면 1, 비어 있으면 0, 하나면 1
+    assert effective_count([10, 20, 30, 40], 126) == 1
+    assert effective_count([], 126) == 0
+    assert effective_count([7], 126) == 1
+    # 경계: 정확히 gap만큼 떨어지면 서로 다른 표본으로 센다
+    assert effective_count([0, 126, 252], 126) == 3
+    assert effective_count([0, 125, 250], 126) == 2  # 0 ✓, 125 ✗, 250 ✓(0과 250)
+    # min_gap 250으로 뽑힌 창들은 gap 126 기준으로 전부 독립
+    assert effective_count(range(0, 2500, 250), 126) == 10
+
+
+def test_effective_sample_size_from_result():
+    """엔진 결과에서 실질 표본 수: ok 이상인 창만 세고, 기준선 대체면 NaN."""
+    from stocker.backtest.harness import distribution_dates, effective_sample_size
+    from stocker.similarity.fit import is_ok
+    from stocker.similarity.loaders import score_mode
+
+    close, macro, cycle, events = _inputs(seed=11)
+    full = _clean_close(close)
+    as_of = full.index[4500]
+    cfg = SimilarityConfig(window=WINDOW, top_k=30, min_gap_days=63)
+    res = score_mode(as_of, full, macro, cycle, events, cfg, "shape")
+    dates = distribution_dates(res)
+    if res.forward_summary_source == "baseline":
+        assert len(dates) == 0 and np.isnan(effective_sample_size(res, full))
+        return
+    ok = [m.end_date for m, f in zip(res.matches, res.fit, strict=True) if is_ok(f)]
+    assert list(dates) == ok and len(ok) == int(res.forward_summary.loc[252, "n"])
+    pos = np.sort(full.index.get_indexer(dates))
+    # 손계산과 같고, 범위는 1 ≤ n_eff ≤ n
+    expected, last = 1, int(pos[0])
+    for p in pos[1:]:
+        if int(p) - last >= 126:
+            expected, last = expected + 1, int(p)
+    assert effective_sample_size(res, full) == expected
+    assert 1 <= expected <= len(ok)
+
+
+def test_phase6b_rows_and_no_lookahead_single_point():
+    """한 시점: arm 행에 preset·top_k·min_gap·n_eff가 붙고, 그 이후 데이터를 잘라도 분포가 같다."""
+    from stocker.backtest.harness import PRESET_COLUMNS, evaluate_arm
+    from stocker.backtest.presets import arm_by_name, get_preset
+
+    close, macro, cycle, events = _inputs(seed=3)
+    full = _clean_close(close)
+    as_of = full.index[4200]
+    cfg = SimilarityConfig(window=WINDOW)
+    arms = get_preset("phase6b")
+    for name in ("shape_k10", "regime_k20", "shape_k30"):
+        arm = arm_by_name(arms, name)
+        rows = evaluate_arm(arm, as_of, full, macro, cycle, events, cfg, (252,), "phase6b")
+        r = rows[0]
+        assert r["mode"] == name and r["preset"] == "phase6b"
+        assert (r["top_k"], r["min_gap"]) == (arm.top_k, arm.min_gap)
+        assert set(PRESET_COLUMNS) <= set(r)
+        # 분포를 만든 국면 수는 top_k를 넘지 않고, n_eff ≤ n (기준선 대체가 아니면)
+        if r["n"] <= arm.top_k:
+            assert r["n_eff"] <= r["n"]
+        # 룩어헤드: as_of 이후를 잘라도 같은 분포
+        cut_rows = evaluate_arm(
+            arm,
+            as_of,
+            full.loc[:as_of],
+            {k: v.loc[:as_of] for k, v in macro.items()},
+            {k: v.loc[:as_of] for k, v in cycle.items()},
+            events[events["date"] <= as_of],
+            cfg,
+            (252,),
+            "phase6b",
+        )
+        c = cut_rows[0]
+        for col in ("median", "p10", "p90"):
+            assert r[col] == pytest.approx(c[col], nan_ok=True)
+        assert (r["n"], r["applicable"]) == (c["n"], c["applicable"])
+        assert r["n_eff"] == pytest.approx(c["n_eff"], nan_ok=True)
+        assert np.isnan(c["realized"]) and not np.isnan(r["realized"])
+
+
+def test_phase6b_preset_run_and_report_small():
+    from stocker.backtest.harness import PRESET_COLUMNS, run_preset_from_inputs
+    from stocker.backtest.phase6b import build_report_k, interpret
+    from stocker.backtest.presets import get_preset
+
+    close, macro, cycle, events = _inputs(seed=5)
+    cfg = SimilarityConfig(window=WINDOW)
+    dates = month_end_dates(close.index, "2008-01", "2008-06")
+    runs = run_preset_from_inputs(
+        get_preset("phase6b"), dates, close, macro, cycle, events, cfg, (252,), preset="phase6b"
+    )
+    assert list(runs.columns) == RUN_COLUMNS + PRESET_COLUMNS
+    assert len(runs) == 6 * 9 and set(runs["preset"]) == {"phase6b"}
+    assert runs[runs["mode"] == "baseline"]["n_eff"].isna().all()
+    arms = get_preset("phase6b")
+    agg = aggregate(
+        runs, 252, top_k={a.name: a.top_k for a in arms if a.top_k}, modes=[a.name for a in arms]
+    )
+    assert list(agg[agg["era"] == "전체"]["mode"]) == [a.name for a in arms]
+    interp = interpret(agg, arms)
+    assert [r.arm.name for r in interp.rows] == [a.name for a in arms]
+    md = build_report_k(runs, arms, 252, generated_at="test")
+    assert "# 백테스트 결과 (Phase 6B)" in md and interp.conclusion in md
+    assert "| shape_k10 | 모양 우선 | 10 | 250 |" in md and "평균 실질 표본 수" in md
+
+
+def _runs_for_arms(scores: dict[str, float], hit: float = 0.8) -> pd.DataFrame:
+    """arm 이름 → 전체·모든 시대에 같은 구간 점수(폭)인 가짜 결과. realized는 폭 안."""
+    era_dates = ["2000-06-30", "2008-06-30", "2015-06-30", "2021-06-30"]
+    rows = []
+    for mode, w in scores.items():
+        for d0 in era_dates:
+            for i in range(5):
+                rows.append(
+                    dict(
+                        mode=mode,
+                        as_of=pd.Timestamp(d0) + pd.Timedelta(days=i),
+                        horizon=252,
+                        median=0.1,
+                        p10=0.0,
+                        p90=w,
+                        n=5,
+                        applicable=None if mode == "baseline" else True,
+                        realized=w / 2 if i < 5 * hit else w * 2,
+                        n_eff=4.0 if mode != "baseline" else np.nan,
+                    )
+                )
+    return pd.DataFrame(rows)
+
+
+def test_phase6b_interpretation_rules():
+    """4절 해석 규칙의 기계 적용."""
+    from stocker.backtest.phase6b import interpret
+    from stocker.backtest.presets import get_preset
+
+    arms = get_preset("phase6b")
+    names = [a.name for a in arms]
+    top_k = {a.name: a.top_k for a in arms if a.top_k}
+
+    def run(scores):
+        agg = aggregate(_runs_for_arms(scores), 252, top_k=top_k, modes=names)
+        return interpret(agg, arms)
+
+    base = {n: 1.5 for n in names}  # 전부 기준선(1.0)보다 나쁨
+    base["baseline"] = 1.0
+    # 1) 어느 k에서도 못 이김 → 확정 결론
+    v = run(base)
+    assert v.winners == [] and "좁히지 못한다" in v.conclusion and "사례" in v.conclusion
+    # 2) k=30에서만 이김 → "미약"
+    v = run({**base, "shape_k30": 0.8, "regime_k30": 0.7})
+    assert v.winners == ["shape_k30", "regime_k30"] and v.core_winners == []
+    assert "미약" in v.conclusion
+    # 3) 환경 우선만 k=10·20에서 이김 → 환경 매칭 효과, 모양 없음
+    v = run({**base, "regime_k10": 0.9, "regime_k20": 0.8})
+    assert v.core_winners == ["regime_k10", "regime_k20"] and v.winning_modes == ["regime"]
+    assert "환경 매칭은 효과가 있다, 모양 매칭은 없다" in v.conclusion
+    # 4) 참고 줄(k=5)이 이겨도 규칙 적용 대상이 아니다
+    v = run({**base, "shape_k5": 0.5})
+    assert v.winners == [] and "좁히지 못한다" in v.conclusion
+    # 5) 전체는 낮지만 시대 조건을 못 채우면 승리가 아니다 (compare_to_baseline 규칙)
+    from stocker.backtest.metrics import compare_to_baseline
+
+    runs = _runs_for_arms({**base, "regime_k10": 1.05})
+    sub = runs["mode"] == "regime_k10"
+    runs.loc[sub & (runs["as_of"].dt.year == 2000), "p90"] = 0.01  # 한 시대만 크게 좋음
+    runs.loc[sub & (runs["as_of"].dt.year == 2000), "realized"] = 0.005
+    agg = aggregate(runs, 252, top_k=top_k, modes=names)
+    c = compare_to_baseline(agg, names)["regime_k10"]
+    assert c.overall_is < c.baseline_is and c.eras_won == ["1999–2006"] and not c.beats_baseline
+
+
+def test_phase6b_hit_range_flag():
+    from stocker.backtest.phase6b import _in_range
+    from stocker.backtest.presets import HIT_RANGE
+
+    assert HIT_RANGE == (0.60, 0.95)
+    assert _in_range(0.60) is True and _in_range(0.95) is True and _in_range(0.8) is True
+    assert _in_range(0.33) is False and _in_range(0.96) is False and _in_range(float("nan")) is None

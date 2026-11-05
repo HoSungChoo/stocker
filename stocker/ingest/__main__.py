@@ -1,4 +1,4 @@
-"""CLI: python -m stocker.ingest prices|fred|semi|events"""
+"""CLI: python -m stocker.ingest prices|fred|semi|events|indicators"""
 
 from __future__ import annotations
 
@@ -67,6 +67,21 @@ def semi() -> None:
 
     df = fetch_semi()
     _report(df, "metric", store_semi(df))
+
+
+@app.command()
+def indicators() -> None:
+    """환경 지표(설비투자/GDP, 실러 CAPE·E/P, 공모주 첫날 수익률)를 macro_series에 적재."""
+    from stocker.ingest.indicators import INDICATOR_IDS, fetch_indicators, store_indicators
+
+    df = fetch_indicators()
+    if df.empty:
+        typer.echo("받은 데이터가 없다", err=True)
+        raise typer.Exit(1)
+    _report(df, "series_id", store_indicators(df))
+    missing = [s for s in INDICATOR_IDS if s not in set(df["series_id"])]
+    if missing:
+        typer.echo(f"경고: 데이터가 없는 시리즈: {', '.join(missing)}", err=True)
 
 
 @app.command()

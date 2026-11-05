@@ -1,0 +1,576 @@
+{
+ "now": [
+  {
+   "id": "bottom_10y_turn",
+   "group": "bottom",
+   "label": "10년물 금리 꺾임",
+   "on": false,
+   "value": -0.1,
+   "threshold": -0.4,
+   "unit": "%p",
+   "op": "<="
+  },
+  {
+   "id": "bottom_fed_cut",
+   "group": "bottom",
+   "label": "연준 금리 인하",
+   "on": false,
+   "value": 0,
+   "threshold": -0.2,
+   "unit": "%p",
+   "op": "<="
+  },
+  {
+   "id": "bubble_inversion",
+   "group": "bubble",
+   "label": "장단기 금리 역전",
+   "on": false,
+   "value": 0.52,
+   "threshold": 0,
+   "unit": "%p",
+   "op": "<"
+  },
+  {
+   "id": "bubble_yield_spread",
+   "group": "bubble",
+   "label": "일드 스프레드",
+   "on": false,
+   "value": -0.9,
+   "threshold": -2.7,
+   "unit": "%p",
+   "op": "<="
+  },
+  {
+   "id": "bubble_ipo",
+   "group": "bubble",
+   "label": "공모주 첫날 수익률",
+   "on": null,
+   "value": null,
+   "threshold": 50,
+   "unit": "%",
+   "op": ">="
+  },
+  {
+   "id": "heat_cape",
+   "group": "heat",
+   "label": "주가 고평가(CAPE)",
+   "on": true,
+   "value": 38.4,
+   "threshold": 35,
+   "unit": "배",
+   "op": ">="
+  },
+  {
+   "id": "heat_sox_1y",
+   "group": "heat",
+   "label": "SOX 1년 급등",
+   "on": false,
+   "value": 42.1,
+   "threshold": 100,
+   "unit": "%",
+   "op": ">="
+  },
+  {
+   "id": "crisis_hy",
+   "group": "crisis",
+   "label": "하이일드 스프레드",
+   "on": false,
+   "value": 3.1,
+   "threshold": 7,
+   "unit": "%p",
+   "op": ">="
+  },
+  {
+   "id": "crisis_ccc",
+   "group": "crisis",
+   "label": "CCC 이하 스프레드",
+   "on": false,
+   "value": 8.9,
+   "threshold": 12,
+   "unit": "%p",
+   "op": ">="
+  }
+ ],
+ "matches": [
+  {
+   "rank": 1,
+   "end": "2000-08-08",
+   "signals": [
+    {
+     "id": "bottom_10y_turn",
+     "group": "bottom",
+     "label": "10년물 금리 꺾임",
+     "on": false,
+     "value": -0.1,
+     "threshold": -0.4,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bottom_fed_cut",
+     "group": "bottom",
+     "label": "연준 금리 인하",
+     "on": false,
+     "value": 0,
+     "threshold": -0.2,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bubble_inversion",
+     "group": "bubble",
+     "label": "장단기 금리 역전",
+     "on": true,
+     "value": -0.18,
+     "threshold": 0,
+     "unit": "%p",
+     "op": "<"
+    },
+    {
+     "id": "bubble_yield_spread",
+     "group": "bubble",
+     "label": "일드 스프레드",
+     "on": true,
+     "value": -3.1,
+     "threshold": -2.7,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bubble_ipo",
+     "group": "bubble",
+     "label": "공모주 첫날 수익률",
+     "on": true,
+     "value": 71.2,
+     "threshold": 50,
+     "unit": "%",
+     "op": ">="
+    },
+    {
+     "id": "heat_cape",
+     "group": "heat",
+     "label": "주가 고평가(CAPE)",
+     "on": true,
+     "value": 43.3,
+     "threshold": 35,
+     "unit": "배",
+     "op": ">="
+    },
+    {
+     "id": "heat_sox_1y",
+     "group": "heat",
+     "label": "SOX 1년 급등",
+     "on": true,
+     "value": 118.4,
+     "threshold": 100,
+     "unit": "%",
+     "op": ">="
+    },
+    {
+     "id": "crisis_hy",
+     "group": "crisis",
+     "label": "하이일드 스프레드",
+     "on": false,
+     "value": 5.1,
+     "threshold": 7,
+     "unit": "%p",
+     "op": ">="
+    },
+    {
+     "id": "crisis_ccc",
+     "group": "crisis",
+     "label": "CCC 이하 스프레드",
+     "on": false,
+     "value": 9.6,
+     "threshold": 12,
+     "unit": "%p",
+     "op": ">="
+    }
+   ]
+  },
+  {
+   "rank": 2,
+   "end": "2022-04-25",
+   "signals": [
+    {
+     "id": "bottom_10y_turn",
+     "group": "bottom",
+     "label": "10년물 금리 꺾임",
+     "on": false,
+     "value": -0.3,
+     "threshold": -0.4,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bottom_fed_cut",
+     "group": "bottom",
+     "label": "연준 금리 인하",
+     "on": false,
+     "value": 0,
+     "threshold": -0.2,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bubble_inversion",
+     "group": "bubble",
+     "label": "장단기 금리 역전",
+     "on": false,
+     "value": 0.21,
+     "threshold": 0,
+     "unit": "%p",
+     "op": "<"
+    },
+    {
+     "id": "bubble_yield_spread",
+     "group": "bubble",
+     "label": "일드 스프레드",
+     "on": false,
+     "value": -1.4,
+     "threshold": -2.7,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bubble_ipo",
+     "group": "bubble",
+     "label": "공모주 첫날 수익률",
+     "on": false,
+     "value": 28.3,
+     "threshold": 50,
+     "unit": "%",
+     "op": ">="
+    },
+    {
+     "id": "heat_cape",
+     "group": "heat",
+     "label": "주가 고평가(CAPE)",
+     "on": false,
+     "value": 33.2,
+     "threshold": 35,
+     "unit": "배",
+     "op": ">="
+    },
+    {
+     "id": "heat_sox_1y",
+     "group": "heat",
+     "label": "SOX 1년 급등",
+     "on": false,
+     "value": -9.7,
+     "threshold": 100,
+     "unit": "%",
+     "op": ">="
+    },
+    {
+     "id": "crisis_hy",
+     "group": "crisis",
+     "label": "하이일드 스프레드",
+     "on": false,
+     "value": 4.7,
+     "threshold": 7,
+     "unit": "%p",
+     "op": ">="
+    },
+    {
+     "id": "crisis_ccc",
+     "group": "crisis",
+     "label": "CCC 이하 스프레드",
+     "on": false,
+     "value": 9.8,
+     "threshold": 12,
+     "unit": "%p",
+     "op": ">="
+    }
+   ]
+  },
+  {
+   "rank": 3,
+   "end": "2025-03-20",
+   "signals": [
+    {
+     "id": "bottom_10y_turn",
+     "group": "bottom",
+     "label": "10년물 금리 꺾임",
+     "on": false,
+     "value": -0.2,
+     "threshold": -0.4,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bottom_fed_cut",
+     "group": "bottom",
+     "label": "연준 금리 인하",
+     "on": false,
+     "value": 0,
+     "threshold": -0.2,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bubble_inversion",
+     "group": "bubble",
+     "label": "장단기 금리 역전",
+     "on": false,
+     "value": 0.3,
+     "threshold": 0,
+     "unit": "%p",
+     "op": "<"
+    },
+    {
+     "id": "bubble_yield_spread",
+     "group": "bubble",
+     "label": "일드 스프레드",
+     "on": false,
+     "value": -0.7,
+     "threshold": -2.7,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bubble_ipo",
+     "group": "bubble",
+     "label": "공모주 첫날 수익률",
+     "on": null,
+     "value": null,
+     "threshold": 50,
+     "unit": "%",
+     "op": ">="
+    },
+    {
+     "id": "heat_cape",
+     "group": "heat",
+     "label": "주가 고평가(CAPE)",
+     "on": true,
+     "value": 35.8,
+     "threshold": 35,
+     "unit": "배",
+     "op": ">="
+    },
+    {
+     "id": "heat_sox_1y",
+     "group": "heat",
+     "label": "SOX 1년 급등",
+     "on": false,
+     "value": 21.5,
+     "threshold": 100,
+     "unit": "%",
+     "op": ">="
+    },
+    {
+     "id": "crisis_hy",
+     "group": "crisis",
+     "label": "하이일드 스프레드",
+     "on": false,
+     "value": 3.4,
+     "threshold": 7,
+     "unit": "%p",
+     "op": ">="
+    },
+    {
+     "id": "crisis_ccc",
+     "group": "crisis",
+     "label": "CCC 이하 스프레드",
+     "on": false,
+     "value": 8.2,
+     "threshold": 12,
+     "unit": "%p",
+     "op": ">="
+    }
+   ]
+  },
+  {
+   "rank": 4,
+   "end": "2018-10-22",
+   "signals": [
+    {
+     "id": "bottom_10y_turn",
+     "group": "bottom",
+     "label": "10년물 금리 꺾임",
+     "on": false,
+     "value": -0.1,
+     "threshold": -0.4,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bottom_fed_cut",
+     "group": "bottom",
+     "label": "연준 금리 인하",
+     "on": false,
+     "value": 0,
+     "threshold": -0.2,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bubble_inversion",
+     "group": "bubble",
+     "label": "장단기 금리 역전",
+     "on": false,
+     "value": 0.24,
+     "threshold": 0,
+     "unit": "%p",
+     "op": "<"
+    },
+    {
+     "id": "bubble_yield_spread",
+     "group": "bubble",
+     "label": "일드 스프레드",
+     "on": false,
+     "value": -0.1,
+     "threshold": -2.7,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bubble_ipo",
+     "group": "bubble",
+     "label": "공모주 첫날 수익률",
+     "on": false,
+     "value": 14.5,
+     "threshold": 50,
+     "unit": "%",
+     "op": ">="
+    },
+    {
+     "id": "heat_cape",
+     "group": "heat",
+     "label": "주가 고평가(CAPE)",
+     "on": false,
+     "value": 32.1,
+     "threshold": 35,
+     "unit": "배",
+     "op": ">="
+    },
+    {
+     "id": "heat_sox_1y",
+     "group": "heat",
+     "label": "SOX 1년 급등",
+     "on": false,
+     "value": 6.3,
+     "threshold": 100,
+     "unit": "%",
+     "op": ">="
+    },
+    {
+     "id": "crisis_hy",
+     "group": "crisis",
+     "label": "하이일드 스프레드",
+     "on": false,
+     "value": 3.5,
+     "threshold": 7,
+     "unit": "%p",
+     "op": ">="
+    },
+    {
+     "id": "crisis_ccc",
+     "group": "crisis",
+     "label": "CCC 이하 스프레드",
+     "on": false,
+     "value": 8.4,
+     "threshold": 12,
+     "unit": "%p",
+     "op": ">="
+    }
+   ]
+  },
+  {
+   "rank": 5,
+   "end": "2004-08-11",
+   "signals": [
+    {
+     "id": "bottom_10y_turn",
+     "group": "bottom",
+     "label": "10년물 금리 꺾임",
+     "on": true,
+     "value": -0.6,
+     "threshold": -0.4,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bottom_fed_cut",
+     "group": "bottom",
+     "label": "연준 금리 인하",
+     "on": false,
+     "value": 0,
+     "threshold": -0.2,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bubble_inversion",
+     "group": "bubble",
+     "label": "장단기 금리 역전",
+     "on": false,
+     "value": 1.4,
+     "threshold": 0,
+     "unit": "%p",
+     "op": "<"
+    },
+    {
+     "id": "bubble_yield_spread",
+     "group": "bubble",
+     "label": "일드 스프레드",
+     "on": false,
+     "value": 1.9,
+     "threshold": -2.7,
+     "unit": "%p",
+     "op": "<="
+    },
+    {
+     "id": "bubble_ipo",
+     "group": "bubble",
+     "label": "공모주 첫날 수익률",
+     "on": false,
+     "value": 12.6,
+     "threshold": 50,
+     "unit": "%",
+     "op": ">="
+    },
+    {
+     "id": "heat_cape",
+     "group": "heat",
+     "label": "주가 고평가(CAPE)",
+     "on": false,
+     "value": 25.9,
+     "threshold": 35,
+     "unit": "배",
+     "op": ">="
+    },
+    {
+     "id": "heat_sox_1y",
+     "group": "heat",
+     "label": "SOX 1년 급등",
+     "on": false,
+     "value": 13.2,
+     "threshold": 100,
+     "unit": "%",
+     "op": ">="
+    },
+    {
+     "id": "crisis_hy",
+     "group": "crisis",
+     "label": "하이일드 스프레드",
+     "on": false,
+     "value": 3.7,
+     "threshold": 7,
+     "unit": "%p",
+     "op": ">="
+    },
+    {
+     "id": "crisis_ccc",
+     "group": "crisis",
+     "label": "CCC 이하 스프레드",
+     "on": false,
+     "value": 9.2,
+     "threshold": 12,
+     "unit": "%p",
+     "op": ">="
+    }
+   ]
+  }
+ ]
+}

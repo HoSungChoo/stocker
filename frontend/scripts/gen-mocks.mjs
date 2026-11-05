@@ -244,10 +244,39 @@ const applyByWindow = {
   ]),
 }
 
+// 체크리스트(30절): 신호 9개의 정의는 서버 규칙과 같고, 값은 목업용으로 지어낸 것이다.
+const SIGNAL_DEFS = [
+  ['bottom_10y_turn', 'bottom', '10년물 금리 꺾임', -0.4, '%p', '<='],
+  ['bottom_fed_cut', 'bottom', '연준 금리 인하', -0.2, '%p', '<='],
+  ['bubble_inversion', 'bubble', '장단기 금리 역전', 0, '%p', '<'],
+  ['bubble_yield_spread', 'bubble', '일드 스프레드', -2.7, '%p', '<='],
+  ['bubble_ipo', 'bubble', '공모주 첫날 수익률', 50, '%', '>='],
+  ['heat_cape', 'heat', '주가 고평가(CAPE)', 35, '배', '>='],
+  ['heat_sox_1y', 'heat', 'SOX 1년 급등', 100, '%', '>='],
+  ['crisis_hy', 'crisis', '하이일드 스프레드', 7, '%p', '>='],
+  ['crisis_ccc', 'crisis', 'CCC 이하 스프레드', 12, '%p', '>='],
+]
+const sigs = (values) =>
+  SIGNAL_DEFS.map(([id, group, label, threshold, unit, op], i) => {
+    const value = values[i]
+    const cmp = { '<=': (v) => v <= threshold, '<': (v) => v < threshold, '>=': (v) => v >= threshold }[op]
+    return { id, group, label, on: value == null ? null : cmp(value), value, threshold, unit, op }
+  })
+const checklist = {
+  now: sigs([-0.1, 0, 0.52, -0.9, null, 38.4, 42.1, 3.1, 8.9]),
+  matches: [
+    { rank: 1, end: '2000-08-08', signals: sigs([-0.1, 0, -0.18, -3.1, 71.2, 43.3, 118.4, 5.1, 9.6]) },
+    { rank: 2, end: '2022-04-25', signals: sigs([-0.3, 0, 0.21, -1.4, 28.3, 33.2, -9.7, 4.7, 9.8]) },
+    { rank: 3, end: '2025-03-20', signals: sigs([-0.2, 0, 0.3, -0.7, null, 35.8, 21.5, 3.4, 8.2]) },
+    { rank: 4, end: '2018-10-22', signals: sigs([-0.1, 0, 0.24, -0.1, 14.5, 32.1, 6.3, 3.5, 8.4]) },
+    { rank: 5, end: '2004-08-11', signals: sigs([-0.6, 0, 1.4, 1.9, 12.6, 25.9, 13.2, 3.7, 9.2]) },
+  ],
+}
+
 const health = { ok: true, last_trading_day: '2026-11-04', layers_missing: [] }
 const report = { run_date: '2026-11-04', markdown: '# 아침 보고서 (mock)\n' }
 
-const files = { similarity, overlay, explain, 'events-impact': impact, 'events-upcoming': upcoming, 'event-path': eventPath, 'positions-latest': positions, 'positions-apply': applyByWindow, health, report }
+const files = { similarity, overlay, explain, 'events-impact': impact, 'events-upcoming': upcoming, 'event-path': eventPath, 'positions-latest': positions, 'positions-apply': applyByWindow, health, report, checklist }
 for (const [name, data] of Object.entries(files)) {
   writeFileSync(join(out, name + '.json'), JSON.stringify(data, null, name === 'overlay' ? 0 : 1) + '\n')
 }

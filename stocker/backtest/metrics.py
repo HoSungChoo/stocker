@@ -88,6 +88,8 @@ class Summary:
     not_applicable_rate: float  # applicable=False 비율 (baseline은 NaN)
     baseline_rate: float  # ok 이상이 0개여서 기준선 분포로 대체된 비율 (baseline은 NaN)
     mean_n: float  # 분포를 만든 국면 수의 평균
+    # 실질 표본 수(서로 126거래일 이상 떨어진 선택 창 수)의 평균. 열이 없으면 NaN.
+    mean_n_eff: float = float("nan")
 
 
 def _rate(s: pd.Series) -> float:
@@ -95,8 +97,10 @@ def _rate(s: pd.Series) -> float:
     return float(s.mean()) if len(s) else float("nan")
 
 
-def summarize(df: pd.DataFrame, mode: str, era: str, top_k: int = 5) -> Summary:
-    """한 (mode, era) 묶음의 지표. top_k: 기준선 대체 여부를 n으로 가려내는 기준."""
+def summarize(df: pd.DataFrame, mode: str, era: str, top_k: int | dict[str, int] = 5) -> Summary:
+    """한 (mode, era) 묶음의 지표. top_k: 기준선 대체 여부를 n으로 가려내는 기준
+    (정수, 또는 mode → 정수 dict; dict에 없는 모드는 5)."""
+    k = top_k.get(mode, 5) if isinstance(top_k, dict) else top_k
     d = df.copy()
     scored = d.dropna(subset=["p10", "p90", "realized"])
     na_rate = float("nan")
@@ -107,7 +111,7 @@ def summarize(df: pd.DataFrame, mode: str, era: str, top_k: int = 5) -> Summary:
             not_app = app == False  # noqa: E712
             na_rate = float(not_app.sum() / app.notna().sum())
             # 기준선 대체: applicable=False이고 국면 수 n이 top_k보다 큼(전체 과거 창의 수)
-            base_rate = float((not_app & (d["n"] > top_k)).sum() / app.notna().sum())
+            base_rate = float((not_app & (d["n"] > k)).sum() / app.notna().sum())
     return Summary(
         mode=mode,
         era=era,
@@ -118,25 +122,80 @@ def summarize(df: pd.DataFrame, mode: str, era: str, top_k: int = 5) -> Summary:
         not_applicable_rate=na_rate,
         baseline_rate=base_rate,
         mean_n=_rate(d["n"].astype("float64")) if "n" in d and len(d) else float("nan"),
+        mean_n_eff=_rate(d["n_eff"].astype("float64")) if "n_eff" in d and len(d) else float("nan"),
     )
 
 
-def aggregate(runs: pd.DataFrame, horizon: int, top_k: int = 5) -> pd.DataFrame:
+def aggregate(
+    runs: pd.DataFrame,
+    horizon: int,
+    top_k: int | dict[str, int] = 5,
+    modes: list[str] | None = None,
+) -> pd.DataFrame:
     """backtest_runs 형식 → (mode, era) 지표 표. era="전체"가 먼저, 그다음 ERAS 순.
 
     columns: mode, era, n, interval_score, hit_rate, direction_rate, not_applicable_rate,
-             baseline_rate, mean_n
+             baseline_rate, mean_n, mean_n_eff
+    modes: 표에 넣을 모드와 순서. None이면 MODES 순 + 나머지 알파벳 순.
     """
     d = runs[runs["horizon"] == horizon].copy()
     d["era"] = d["as_of"].map(era_of)
     rows: list[Summary] = []
-    modes = [m for m in MODES if m in set(d["mode"])] + sorted(set(d["mode"]) - set(MODES))
+    if modes is None:
+        modes = [m for m in MODES if m in set(d["mode"])] + sorted(set(d["mode"]) - set(MODES))
+    else:
+        modes = [m for m in modes if m in set(d["mode"])]
     for mode in modes:
         dm = d[d["mode"] == mode]
         rows.append(summarize(dm, mode, "전체", top_k))
         for era in ERAS:
             rows.append(summarize(dm[dm["era"] == era], mode, era, top_k))
     return pd.DataFrame([r.__dict__ for r in rows])
+
+
+@dataclass
+class BaselineComparison:
+    """한 모드의 기준선 대비 결과 (승리 조건 규칙은 verdict와 같다)."""
+
+    mode: str
+    overall_is: float
+    baseline_is: float
+    eras_won: list[str]
+    beats_baseline: bool  # 전체 IS < 기준선 AND 시대 MIN_ERAS_TO_WIN개 이상 <
+
+
+def compare_to_baseline(agg: pd.DataFrame, modes: list[str]) -> dict[str, BaselineComparison]:
+    """aggregate() 결과에서 modes 각각을 기준선과 비교한다. 기준선 행이 없으면 ValueError."""
+    if not (agg["mode"] == "baseline").any():
+        raise ValueError("기준선(baseline) 결과가 없어 판정할 수 없다")
+
+    def is_of(mode: str, era: str) -> float:
+        row = agg[(agg["mode"] == mode) & (agg["era"] == era)]
+        return float(row["interval_score"].iloc[0]) if len(row) else float("nan")
+
+    base_all = is_of("baseline", "전체")
+    out: dict[str, BaselineComparison] = {}
+    for mode in modes:
+        if mode == "baseline" or not (agg["mode"] == mode).any():
+            continue
+        all_is = is_of(mode, "전체")
+        won = [
+            era
+            for era in ERAS
+            if not math.isnan(is_of(mode, era))
+            and not math.isnan(is_of("baseline", era))
+            and is_of(mode, era) < is_of("baseline", era)
+        ]
+        out[mode] = BaselineComparison(
+            mode=mode,
+            overall_is=all_is,
+            baseline_is=base_all,
+            eras_won=won,
+            beats_baseline=bool(
+                not math.isnan(all_is) and all_is < base_all and len(won) >= MIN_ERAS_TO_WIN
+            ),
+        )
+    return out
 
 
 @dataclass
@@ -215,9 +274,11 @@ __all__ = [
     "ALPHA",
     "ERAS",
     "MODES",
+    "BaselineComparison",
     "Summary",
     "Verdict",
     "aggregate",
+    "compare_to_baseline",
     "direction_series",
     "era_of",
     "hit_series",

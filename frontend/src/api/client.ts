@@ -45,6 +45,7 @@ export const realApi: Api = {
   health: () => getJson('/health'),
   similarity: (q) => getJson('/similarity', commonParams(q)),
   overlay: (q) => getJson('/overlay', commonParams(q)),
+  checklist: (q) => getJson('/checklist', commonParams(q)),
   explain: (end, q) => getJson('/explain', { ...commonParams(q), end }),
   eventsUpcoming: (days) => getJson('/events/upcoming', { days }),
   eventsImpact: ({ limit, kinds }) => getJson('/events/impact', { limit, kinds: kinds?.join(',') }),

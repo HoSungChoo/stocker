@@ -89,6 +89,30 @@ class OverlayOut(BaseModel):
     matches: list[MatchPath]
 
 
+class SignalOut(BaseModel):
+    """체크리스트 신호 하나 (계약 PHASE6C 30절). on=None은 데이터 없음, 켜짐은 값 op 임계값."""
+
+    id: str
+    group: str  # bottom | bubble | heat | crisis
+    label: str
+    on: bool | None
+    value: float | None
+    threshold: float
+    unit: str
+    op: str
+
+
+class ChecklistMatchOut(BaseModel):
+    rank: int
+    end: str
+    signals: list[SignalOut]
+
+
+class ChecklistOut(BaseModel):
+    now: list[SignalOut]
+    matches: list[ChecklistMatchOut]
+
+
 class ThenNowOut(BaseModel):
     then: float | None
     now: float | None

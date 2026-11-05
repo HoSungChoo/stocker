@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import type { ExplainResponse, FitCheck, Match, SimilarityQuery } from '../api'
+import type { ChecklistResponse, ExplainResponse, FitCheck, Match, Signal, SimilarityQuery } from '../api'
 import { useExplain } from '../hooks'
+import { onSignals, signalTitle } from '../lib/checklist'
 import { fmtDays, fmtMacro, HORIZONS, HORIZON_LABEL, LAYER_LABEL, pct, score, signClass } from '../lib/format'
 import { rankColor } from '../lib/palette'
 import { readNote } from '../lib/readNote'
@@ -58,16 +59,45 @@ export function CommentBlock({ comment }: { comment: string }) {
   )
 }
 
+/** "그때 켜진 신호 / 지금 켜진 신호" 한 줄. 점수와 무관한 참고 표시다 (계약 PHASE6C 30.3절). */
+function SignalBadges({ then, now }: { then: Signal[]; now: Signal[] }) {
+  const group = (label: string, list: Signal[], testId: string) => {
+    const on = onSignals(list)
+    const noData = list.every((s) => s.on == null)
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1.5" data-testid={testId}>
+        <span className="muted">{label}</span>
+        {on.map((s) => (
+          <span key={s.id} className="text-[12px] rounded-md border border-edge px-2 py-0.5" title={signalTitle(s)}>
+            {s.label}
+          </span>
+        ))}
+        {on.length === 0 && <span className="muted">{noData ? '데이터 없음' : '없음'}</span>}
+      </span>
+    )
+  }
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] items-center" data-testid="signal-badges">
+      {group('그때 켜진 신호', then, 'badges-then')}
+      <span className="muted">/</span>
+      {group('지금 켜진 신호', now, 'badges-now')}
+    </div>
+  )
+}
+
 function EvalCard({
   match,
   fit,
   q,
   defaultExpanded,
+  signals,
 }: {
   match: Match
   fit?: FitCheck
   q: SimilarityQuery
   defaultExpanded: boolean
+  /** 그때(이 국면 창 끝)와 지금의 체크리스트 신호. 서버가 안 주면 줄을 숨긴다 */
+  signals?: { then: Signal[]; now: Signal[] }
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const explain = useExplain(match.end, q, expanded)
@@ -132,6 +162,8 @@ function EvalCard({
         </>
       )}
 
+      {signals && <SignalBadges then={signals.then} now={signals.now} />}
+
       <div className="flex gap-4 text-[13px] flex-wrap">
         <span className="muted">이 국면 뒤</span>
         {HORIZONS.map((h) => {
@@ -176,12 +208,19 @@ export default function EvalCards({
   matches,
   fit,
   q,
+  checklist,
 }: {
   matches: Match[]
   /** matches 와 같은 순서의 적합 판정. 서버가 안 내면 undefined/null */
   fit?: FitCheck[] | null
   q: SimilarityQuery
+  /** 체크리스트 응답. 아직 없거나 실패하면 배지 줄을 숨긴다 */
+  checklist?: ChecklistResponse | null
 }) {
+  const signalsOf = (m: Match) => {
+    const then = checklist?.matches.find((c) => c.end === m.end)
+    return checklist && then ? { then: then.signals, now: checklist.now } : undefined
+  }
   const top = matches.slice(0, 3)
   const rest = matches.slice(3)
   return (
@@ -194,12 +233,19 @@ export default function EvalCards({
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
         {top.map((m, i) => (
-          <EvalCard key={m.end} match={m} fit={fit?.[i]} q={q} defaultExpanded />
+          <EvalCard key={m.end} match={m} fit={fit?.[i]} q={q} defaultExpanded signals={signalsOf(m)} />
         ))}
         {rest.length > 0 && (
           <div className="flex flex-col gap-4">
             {rest.map((m, i) => (
-              <EvalCard key={m.end} match={m} fit={fit?.[top.length + i]} q={q} defaultExpanded={false} />
+              <EvalCard
+                key={m.end}
+                match={m}
+                fit={fit?.[top.length + i]}
+                q={q}
+                defaultExpanded={false}
+                signals={signalsOf(m)}
+              />
             ))}
           </div>
         )}
